@@ -24,7 +24,7 @@
 
 
 enum _COLOR {
-    white = 0,
+        white = 0,
 	black,
 	yellow,
 	cyan,
@@ -35,7 +35,7 @@ enum _COLOR {
 } typedef COLOR;
 
 
-// funtion proto
+// funtion prototypes
 int runTestPatternRGB(int  word_count);
 unsigned int* colorPixel(COLOR c, int x, int y, unsigned int *pDisplay_data, int x0, int y0);
 void drawSmiley(int x0, int y0, int radius, int is_alive);
@@ -67,14 +67,12 @@ int main (void) {
    return 0;
 }
 
-/* Call this function to draw a face centered at
-   x0,y0 with the specified radius. Specify whether the
-   face should be frowning by setting is_smiling
-   to 1 for is smiling, and 0 for frowning.
-*/
 
-/* Draw the letter "X" with color c centered at x,y. pixels_in_each_branch represents 
-   how many pixels are in each of the 4 branches that compose "X" 
+/* 
+   drawX is a helper function for drawSmiley. It will
+   draw the letter "X" with color c centered at x,y. pixels_in_each_branch represents 
+   how many pixels are in each of the 4 branches that compose "X". The larger
+   pixels_in_each_branch is, the larger the "X" displayed will be.
 */
 
 unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
@@ -170,12 +168,21 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 
 
 
+/* Call this function to draw a face centered at
+   x0,y0 with the specified radius. is_alive specifies
+   whether the face is dead or alive (0 = dead, 1 = alive).
+   If the face is dead, draw a frowning face with X'ed out
+   eyes. If the face has not been hit, draw a smiling
+   face with circles for eyes.
+*/
+
+
 void drawSmiley(int x, int y, int radius, int is_alive) {
     int dist_mouth_from_center = radius*.6;
 	int dist_eyes_from_center = radius/2;
 	int pixels_in_branch_of_x = 8; //How many pixels in each of the 4 branches that compose the letter "X"
 	COLOR border_color = yellow;
-    COLOR mouth_color  = magenta;
+        COLOR mouth_color  = magenta;
 	COLOR eye_color = blue;
 
     //Draw the smiley's border
@@ -196,7 +203,7 @@ void drawSmiley(int x, int y, int radius, int is_alive) {
 	else {
 	    //Draw an X in place of each eye
 		
-		//Draw the right eye first. .707 is approximately cos(45)= sin(45)
+	    //Draw the right eye first. .707 is approximately cos(45)= sin(45)
 		drawX(x + (int)(dist_eyes_from_center * .707) , 
 		      y - (int)(dist_eyes_from_center * .707), 10, cyan);
 	    //Draw the left eye next.
@@ -211,9 +218,11 @@ void drawSmiley(int x, int y, int radius, int is_alive) {
 
 
 
-
-
-
+/* drawCircle will draw a circle of color border centered at x0,y0 
+   with the specified radius. MAKE SURE YOU DON'T DRAW ANYTHING
+   OUT OF BOUNDS BECAUSE THERE AREN'T REALLY ANY MAJOR ERROR
+   CHECKS!!!!
+*/
 
 void drawCircle(int x0, int y0, int radius, COLOR border) {
   unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
@@ -359,8 +368,6 @@ void drawArc(int x0, int y0, int radius, COLOR border, int is_upside_down) {
 }
 
 
-
-
 /* 
     Color a pixel at location x,y with color c. x0,y0 mark the current position of the
 display pointer pDisplay_data in terms of pixels with x0 representing pixel column and
@@ -384,6 +391,9 @@ unsigned int* colorPixel(COLOR c, int x, int y, unsigned int *pDisplay_data, int
 	return pDisplay_data;
 }										
 												  
+
+
+//Old code from the subtitle project
 
 int runTestPatternRGB(int  word_count) {
   	unsigned int i, x, wordnum;
