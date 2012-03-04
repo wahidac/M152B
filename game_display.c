@@ -37,8 +37,10 @@ enum _COLOR {
 
 // funtion prototypes
 int runTestPatternRGB(int  word_count);
-unsigned int* colorPixel(COLOR c, int x, int y, unsigned int *pDisplay_data, int x0, int y0);
+void colorPixel(COLOR c, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0);
 void drawSmiley(int x0, int y0, int radius, int is_alive);
+int drawDigit(int x, int y, char digit, int scale_factor, COLOR c);
+
 
 //Helper functions for drawSmiley
 void drawCircle(int x0, int y0, int radius, COLOR border);
@@ -48,8 +50,6 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c);
 
 int main (void) {
 
-	int i, j;
-
    print("-- Entering main() --\r\n");
 
     runTestPatternRGB(309760);
@@ -57,9 +57,10 @@ int main (void) {
 	//while(1){
 		print("dbg\r\n");
 		//runTestPatternRGB(309760);
-		//colorPixel(green,435,10,(unsigned int  *)0x07E00000, 0, 0);
-		drawSmiley(400,350,65,1);
-		drawSmiley(400,200,65,0);
+		//drawSmiley(430,350,65,1);
+		//drawSmiley(430,100,65,0);
+		//drawDigit(100, 100, '0', 1, cyan);
+
 	//}
   
 
@@ -84,9 +85,7 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 	int pixel_coordY_to_top_left_of_current = 0;
 	int i = 0;
 	//Color the center of the X
-    pDisplay_data = colorPixel(c,x,y,pDisplay_data,x_current,y_current);
-    x_current  = x;
-    y_current  = y;
+    colorPixel(c,x,y,&pDisplay_data,&x_current,&y_current);
 	center_of_x = pDisplay_data;
 
     //Make the top left branch
@@ -94,17 +93,15 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 	    //Color the pixel directly to the top left of the current pixel
 		pixel_coordX_to_top_left_of_current = x_current - 1;
 		pixel_coordY_to_top_left_of_current = y_current - 1;
-		pDisplay_data = colorPixel(c,pixel_coordX_to_top_left_of_current, 
-		                           pixel_coordY_to_top_left_of_current, pDisplay_data, x_current, y_current);
+		colorPixel(c,pixel_coordX_to_top_left_of_current, 
+		                           pixel_coordY_to_top_left_of_current, &pDisplay_data, &x_current, &y_current);
 	    if(!pDisplay_data){
 		    print("Going out of bounds!!"); //We went out of bounds!!
 			return;
 	    }
-			
-	    x_current = pixel_coordX_to_top_left_of_current;
-		y_current = pixel_coordY_to_top_left_of_current; 
     } 
-	
+
+        //reset display pointer back to center of X	
 	x_current = x;
 	y_current = y;
 	pDisplay_data = center_of_x;
@@ -114,15 +111,12 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 	    //Color the pixel directly to the top left of the current pixel
 		pixel_coordX_to_top_left_of_current = x_current + 1;
 		pixel_coordY_to_top_left_of_current = y_current - 1;
-		pDisplay_data = colorPixel(c,pixel_coordX_to_top_left_of_current, 
-		                           pixel_coordY_to_top_left_of_current, pDisplay_data, x_current, y_current);
-	    if(!pDisplay_data){
+		colorPixel(c,pixel_coordX_to_top_left_of_current, 
+		                           pixel_coordY_to_top_left_of_current, &pDisplay_data, &x_current, &y_current);
+	    if(!*pDisplay_data){
 		    print("Going out of bounds!!"); //We went out of bounds!!
 			return;
 	    }
-			
-	    x_current = pixel_coordX_to_top_left_of_current;
-		y_current = pixel_coordY_to_top_left_of_current; 
     } 
 	
 	x_current = x;
@@ -134,15 +128,13 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 	    //Color the pixel directly to the top left of the current pixel
 		pixel_coordX_to_top_left_of_current = x_current - 1;
 		pixel_coordY_to_top_left_of_current = y_current + 1;
-		pDisplay_data = colorPixel(c,pixel_coordX_to_top_left_of_current, 
-		                           pixel_coordY_to_top_left_of_current, pDisplay_data, x_current, y_current);
+		colorPixel(c,pixel_coordX_to_top_left_of_current, 
+		                           pixel_coordY_to_top_left_of_current, &pDisplay_data, &x_current, &y_current);
 	    if(!pDisplay_data){
 		    print("Going out of bounds!!"); //We went out of bounds!!
 			return;
 	    }
 		
-	    x_current = pixel_coordX_to_top_left_of_current;
-		y_current = pixel_coordY_to_top_left_of_current; 
     } 
 	
 	x_current = x;
@@ -154,15 +146,12 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 	    //Color the pixel directly to the top left of the current pixel
 		pixel_coordX_to_top_left_of_current = x_current + 1;
 		pixel_coordY_to_top_left_of_current = y_current + 1;
-		pDisplay_data = colorPixel(c,pixel_coordX_to_top_left_of_current, 
-		                           pixel_coordY_to_top_left_of_current, pDisplay_data, x_current, y_current);
+		colorPixel(c,pixel_coordX_to_top_left_of_current, 
+		                           pixel_coordY_to_top_left_of_current, &pDisplay_data, &x_current, &y_current);
 	     if(!pDisplay_data){
 		    print("Going out of bounds!!"); //We went out of bounds!!
 			return;
 	    }
-			
-	    x_current = pixel_coordX_to_top_left_of_current;
-		y_current = pixel_coordY_to_top_left_of_current; 
     } 
 }
 
@@ -238,24 +227,16 @@ void drawCircle(int x0, int y0, int radius, COLOR border) {
  
  
   //Bottom Middle
-  pDisplay_data = colorPixel(border, x0, y0 + radius, pDisplay_data, x_current, y_current);
-  x_current = x0;
-  y_current = y0 + radius;
+  colorPixel(border, x0, y0 + radius, &pDisplay_data, &x_current, &y_current);
   
   //Top Middle
-  pDisplay_data = colorPixel(border, x0, y0 - radius, pDisplay_data, x_current, y_current);
-  x_current = x0;
-  y_current = y0 - radius;
+  colorPixel(border, x0, y0 - radius, &pDisplay_data, &x_current, &y_current);
   
   //Right Middle
-  pDisplay_data = colorPixel(border, x0 + radius, y0, pDisplay_data, x_current, y_current);
-  x_current = x0 + radius;
-  y_current = y0;
+  colorPixel(border, x0 + radius, y0, &pDisplay_data, &x_current, &y_current);
   
   //Left Middle
-  pDisplay_data = colorPixel(border, x0 - radius, y0, pDisplay_data, x_current, y_current);
-  x_current = x0 - radius;
-  y_current = y0;
+  colorPixel(border, x0 - radius, y0, &pDisplay_data, &x_current, &y_current);
  
 
   while(x < y)
@@ -273,31 +254,14 @@ void drawCircle(int x0, int y0, int radius, COLOR border) {
     ddF_x += 2;
     f += ddF_x;    
 	
-    pDisplay_data = colorPixel(border, x0 + x, y0 + y, pDisplay_data, x_current, y_current);
-    x_current = x0 + x;
-    y_current = y0 + y;
-	pDisplay_data = colorPixel(border, x0 - x, y0 + y, pDisplay_data, x_current, y_current);
-    x_current = x0 - x;
-    y_current = y0 + y;
-	pDisplay_data = colorPixel(border, x0 + x, y0 - y, pDisplay_data, x_current, y_current);
-    x_current = x0 + x;
-    y_current = y0 - y;
-	pDisplay_data = colorPixel(border, x0 - x, y0 - y, pDisplay_data, x_current, y_current);
-    x_current = x0 - x;
-    y_current = y0 - y;
-	
-	pDisplay_data = colorPixel(border, x0 + y, y0 + x, pDisplay_data, x_current, y_current);
-    x_current = x0 + y;
-    y_current = y0 + x;
-	pDisplay_data = colorPixel(border, x0 - y, y0 + x, pDisplay_data, x_current, y_current);
-    x_current = x0 - y;
-    y_current = y0 + x;
-	pDisplay_data = colorPixel(border, x0 + y, y0 - x, pDisplay_data, x_current, y_current);
-    x_current = x0 + y;
-    y_current = y0 - x; 
-    pDisplay_data = colorPixel(border, x0 - y, y0 - x, pDisplay_data, x_current, y_current);
-    x_current = x0 - y;
-    y_current = y0 - x;
+        colorPixel(border, x0 + x, y0 + y, &pDisplay_data, &x_current, &y_current);
+	colorPixel(border, x0 - x, y0 + y, &pDisplay_data, &x_current, &y_current);
+	colorPixel(border, x0 + x, y0 - y, &pDisplay_data, &x_current, &y_current);
+	colorPixel(border, x0 - x, y0 - y, &pDisplay_data, &x_current, &y_current);
+	colorPixel(border, x0 + y, y0 + x, &pDisplay_data, &x_current, &y_current);
+	colorPixel(border, x0 - y, y0 + x, &pDisplay_data, &x_current, &y_current);
+	colorPixel(border, x0 + y, y0 - x, &pDisplay_data, &x_current, &y_current);
+        colorPixel(border, x0 - y, y0 - x, &pDisplay_data, &x_current, &y_current);
   }
 }
 
@@ -322,15 +286,11 @@ void drawArc(int x0, int y0, int radius, COLOR border, int is_upside_down) {
   
   if(is_upside_down) {
       y0 += radius;
-	  pDisplay_data = colorPixel(border, x0, y0 - radius, pDisplay_data, x_current, y_current);
-      x_current = x0;
-      y_current = y0 - radius;  
+      colorPixel(border, x0, y0 - radius, &pDisplay_data, &x_current, &y_current);
    }
   else {
        y0 -= radius;
-	   pDisplay_data = colorPixel(border, x0, y0 + radius, pDisplay_data, x_current, y_current);
-       x_current = x0;
-       y_current = y0 + radius;  
+       colorPixel(border, x0, y0 + radius, &pDisplay_data, &x_current, &y_current);
   }
 	  
   while(x < y)
@@ -349,20 +309,12 @@ void drawArc(int x0, int y0, int radius, COLOR border, int is_upside_down) {
     f += ddF_x;    
 	
 	if(is_upside_down) {
-	    pDisplay_data = colorPixel(border, x0 + x, y0 - y, pDisplay_data, x_current, y_current);
-        x_current = x0 + x;
-        y_current = y0 - y;
-	    pDisplay_data = colorPixel(border, x0 - x, y0 - y, pDisplay_data, x_current, y_current);
-        x_current = x0 - x;
-        y_current = y0 - y;
+	    colorPixel(border, x0 + x, y0 - y, &pDisplay_data, &x_current, &y_current);
+	    colorPixel(border, x0 - x, y0 - y, &pDisplay_data, &x_current, &y_current);
 	}
 	else {
-	      pDisplay_data = colorPixel(border, x0 + x, y0 + y, pDisplay_data, x_current, y_current);
-          x_current = x0 + x;
-          y_current = y0 + y;
-	      pDisplay_data = colorPixel(border, x0 - x, y0 + y, pDisplay_data, x_current, y_current);
-          x_current = x0 - x;
-          y_current = y0 + y;
+	      colorPixel(border, x0 + x, y0 + y, &pDisplay_data, &x_current, &y_current);
+	      colorPixel(border, x0 - x, y0 + y, &pDisplay_data, &x_current, &y_current);
 	}
   }
 }
@@ -375,20 +327,25 @@ y0 representing pixel row. Returns a pointer to new pixel position. If an invali
 position was specified, return NULL. Treat the top left of the screen as pixel 0,0
 */
 
-unsigned int* colorPixel(COLOR c, int x, int y, unsigned int *pDisplay_data, int x0, int y0){
+void colorPixel(COLOR c, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0){
     volatile unsigned int rgb_value_array[16] = {0x00FFFFFF, 0x00000000, 0x00FFFF00, 0x0000FFFF, 0x0000FF00
 	  											  ,0x00FF00FF, 0x00FF0000, 0x000000FF};
     int pixels_away = 0; //How many pixels away is the destination pixel, counting from left to right
 											
 	//Make sure x,y are in bounds	
-	if(x < 0 || x >= HORIZONTAL_PIXELS || y < 0 || y >= VERTICAL_PIXELS)
-	    return NULL;
+	if(x < 0 || x >= HORIZONTAL_PIXELS || y < 0 || y >= VERTICAL_PIXELS) {
+	    *pDisplay_data = NULL;
+	    return ;
+    }
 		
 	//Advance display pointer to correct position.
-	pixels_away = (y - y0)*(1024) + (x-x0);
-	pDisplay_data += pixels_away;
-	*pDisplay_data = rgb_value_array[c];
-	return pDisplay_data;
+	pixels_away = (y - *y0)*(1024) + (x-*x0);
+	*pDisplay_data += pixels_away;
+	**pDisplay_data = rgb_value_array[c];
+
+        //update current position
+        *y0 = y;
+        *x0 = x;
 }										
 												  
 
@@ -450,4 +407,97 @@ int runTestPatternRGB(int  word_count) {
   	print("Passed!\n\r");
   	return ;
 
-} // end runTestPatternrgb
+} // end runTestPattern
+
+
+
+
+/* Draw a digit. If scale_factor = 1, draw a digit that has dimensions
+   of 8 x 12 pixels. If scale_factor = 2, draw a digit that has dimensions
+   of 16 * 24. If scale_factor = 3, draw a digit that has dimenstions
+   of 24 * 36, and so on. pDisplay_data is a pointer to the display
+   position and x,y represent the top leftmost position of the digit.
+   This top leftmost position is determined by the templates
+   from lab3.
+*/
+
+int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
+    unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+    int horizontal_pixels = 8 * scale_factor; //X dimension of our pixel
+    int vertical_pixels = 12 * scale_factor;  //Y dimension of our pixel
+    int x_current = 0;
+    int y_current = 0;
+    int i = 0;
+
+    //Error check
+    if( (x+horizontal_pixels) >= HORIZONTAL_PIXELS || x < 0 ||
+        (y+vertical_pixels) >= VERTICAL_PIXELS || y < 0 ) 
+        return -1; //Out of bounds!!!!!!
+    
+    //Draw digit 0,1......or 9
+    switch(digit) {
+        case '0':
+            //Draw a '0'. Go column by column
+
+            //column 1 and column 8
+            for(i = 0; i < 8*scale_factor; i++) {
+                colorPixel(c, x, y + 2 + i, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 7, y + 2 + i, &pDisplay_data, &x_current, &y_current);
+            }
+            x++;
+ 
+            //column 2 and 7
+            for(i = 0; i < 10*scale_factor; i++) {
+                colorPixel(c, x, y + 1 + i, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 5, y + 1 + i, &pDisplay_data, &x_current, &y_current);
+            }
+            x++;
+
+            //column 3 and 6
+            for(i = 0; i < 3*scale_factor; i++) {
+                colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x, y + 9 + i,&pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 3, y + i, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 3, y + 9 + i,&pDisplay_data, &x_current, &y_current);
+            }
+            x++; 
+
+            //column 4 and 5
+            for(i = 0; i < 2*scale_factor; i++) {
+                colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x, y + 5, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x, y + 10 + i,&pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 1, y + i, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 1, y + 5, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 1, y + 10 + i,&pDisplay_data, &x_current, &y_current);
+
+            }
+            break;
+        case '1':
+            //Draw a '1'. Go column by column
+
+            //column 1 (empty)
+            x++;
+        
+            //column 2 and column 3
+            for(i = 0; i < 2*scale_factor; i++) {
+                colorPixel(c, x, y + 1 + i, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 1, y + 1 + i, &pDisplay_data, &x_current, &y_current);
+            }
+            x++;            
+ 
+            //column 4 and 5  
+            for(i = 0; i < 12*scale_factor; i++) {
+                colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
+                colorPixel(c, x + 1, y + i, &pDisplay_data, &x_current, &y_current);
+            }
+
+            //column 6,7,8 (all empty)
+            break;
+        case '2':
+           //Draw a '2'.
+           break;
+    }
+
+    return 1; 
+}
