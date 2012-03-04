@@ -428,6 +428,7 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
     int x_current = 0;
     int y_current = 0;
     int i = 0;
+    int j = 0;
 
     //Error check
     if( (x+horizontal_pixels) >= HORIZONTAL_PIXELS || x < 0 ||
@@ -439,64 +440,843 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
         case '0':
             //Draw a '0'. Go column by column
 
-            //column 1 and column 8
-            for(i = 0; i < 8*scale_factor; i++) {
-                colorPixel(c, x, y + 2 + i, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 7, y + 2 + i, &pDisplay_data, &x_current, &y_current);
+            for(j = 0; j < scale_factor; j++) {
+                //column 1 and column 8 
+                for(i = 0; i < 8*scale_factor; i++) {
+                    colorPixel(c, x, y + 2 + i, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (8*scale_factor - 1 - j)), y + 2 + i, &pDisplay_data, &x_current, &y_current);
+                }
+                x++;
             }
-            x++;
  
-            //column 2 and 7
-            for(i = 0; i < 10*scale_factor; i++) {
-                colorPixel(c, x, y + 1 + i, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 5, y + 1 + i, &pDisplay_data, &x_current, &y_current);
+            for(j = 0; j < scale_factor; j++) { 
+                //column 2 and 7
+                for(i = 0; i < 10*scale_factor; i++) {
+                    colorPixel(c, x, y + 1 + i, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (8*scale_factor - scale_factor*2 - 1 - j), y + 1 + i, &pDisplay_data, &x_current, &y_current);
+                }
+                x++;
             }
-            x++;
 
-            //column 3 and 6
-            for(i = 0; i < 3*scale_factor; i++) {
-                colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x, y + 9 + i,&pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 3, y + i, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 3, y + 9 + i,&pDisplay_data, &x_current, &y_current);
+            for(j = 0; j < scale_factor; j++) {
+                //column 3 and 6
+                for(i = 0; i < 3*scale_factor; i++) {
+                    colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x, y + 9 + i,&pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (8*scale_factor - scale_factor*4 - 1 - j), y + i, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (8*scale_factor - scale_factor*4 - 1 - j), y + 9 + i,&pDisplay_data, &x_current, &y_current);
+                }
+                x++; 
             }
-            x++; 
 
-            //column 4 and 5
-            for(i = 0; i < 2*scale_factor; i++) {
-                colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x, y + 5, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x, y + 10 + i,&pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 1, y + i, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 1, y + 5, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 1, y + 10 + i,&pDisplay_data, &x_current, &y_current);
+            for(j = 0; j < scale_factor; j++) {
+                //column 4 and 5
+                for(i = 0; i < 2*scale_factor; i++) {
+                    colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x, y + 5, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x, y + 10 + i,&pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (8*scale_factor - scale_factor*6 - 1 - j), y + i, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (8*scale_factor - scale_factor*6 - 1 - j), y + 5, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (8*scale_factor - scale_factor*6 - 1 - j), y + 10 + i,&pDisplay_data, &x_current, &y_current);
 
+                }
             }
             break;
         case '1':
             //Draw a '1'. Go column by column
 
             //column 1 (empty)
-            x++;
+            for(j = 0; j < scale_factor; j++)
+                x++;
         
             //column 2 and column 3
-            for(i = 0; i < 2*scale_factor; i++) {
-                colorPixel(c, x, y + 1 + i, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 1, y + 1 + i, &pDisplay_data, &x_current, &y_current);
-            }
-            x++;            
- 
-            //column 4 and 5  
-            for(i = 0; i < 12*scale_factor; i++) {
-                colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
-                colorPixel(c, x + 1, y + i, &pDisplay_data, &x_current, &y_current);
+            for(j = 0; j < scale_factor; j++) {
+                for(i = 0; i < 2*scale_factor; i++) {
+                    colorPixel(c, x, y + 1 + i, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (scale_factor*2 - 1 - j), y + 1 + i, &pDisplay_data, &x_current, &y_current);
+                }
+                x++; 
+            }           
+
+            for(j = 0; j < scale_factor; j++) { 
+                //column 4 and 5  
+                for(i = 0; i < 12*scale_factor; i++) {
+                    colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
+                    colorPixel(c, x + (scale_factor*2 - 1 - j), y + i, &pDisplay_data, &x_current, &y_current);
+                }
+                x++;
             }
 
             //column 6,7,8 (all empty)
             break;
         case '2':
            //Draw a '2'.
+
+           //column 1
+           
+           //Multiply by scale_factor to get updated y offset
+
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor; i++) {
+                   colorPixel(c, x, y + 2*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + 9*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+
+           //column 2
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 1*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*4; i++) {
+                   colorPixel(c, x, y + 8*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+            
+           //column 3
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*5; i++) {
+                   colorPixel(c, x, y + 7*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+           //column 4
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + 6*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+           //column 5
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + 5*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+           
+           //column 6
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + 4*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+           //column 7
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*5; i++) {
+                   colorPixel(c, x, y + scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+           //column 8
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + 2*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
            break;
+
+       case '3':
+           //column 1
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*1; i++) {
+                   colorPixel(c, x, y + 2*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*1; i++) {
+                   colorPixel(c, x, y + 9*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+       
+          //column 2
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 1*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 9*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   } 
+
+           //column 3
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + 9*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           
+           //column 4
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 5*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+            
+           //column 5
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 5*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+            
+           //column 6
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*4; i++) {
+		   colorPixel(c, x, y + 4*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + 9*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 7
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*4; i++) {
+		   colorPixel(c, x, y + 1*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*5; i++) {
+		   colorPixel(c, x, y + 6*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           
+           //column 8
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 2*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + 7*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+           break;
+
+       case '4':
+
+           //column 1
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + 5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           
+           //column 2
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*8; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           
+           //column 3
+	   for(j = 0; j < scale_factor; j++) {
+	       for(i = 0; i < scale_factor*5; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+           //column 4
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+ 
+           //column 5
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+           //column 6
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*11; i++) {
+		   colorPixel(c, x, y + 1*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+ 
+           //column 7
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*11; i++) {
+		   colorPixel(c, x, y + 1*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+          
+           //column 6
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+       case '5':
+           //column 1
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*6; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*1; i++) {
+		   colorPixel(c, x, y + 9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+           //column 2
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*6; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+
+           //column 3
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + 9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+
+           //column 4
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+
+           //column 5
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + 10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+
+           //column 6
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + 4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y + 9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }              
+	       x++;
+	   }
+
+
+           //column 7
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+ 	       for(i = 0; i < scale_factor*6; i++) {
+		   colorPixel(c, x, y + 5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 8
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+	       }
+ 	       for(i = 0; i < scale_factor*4; i++) {
+		   colorPixel(c, x, y + 6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+     
+       case '6'
+           //column 1
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*8; i++) {
+		   colorPixel(c, x, y + 2*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   } 
+
+           //column 2
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*10; i++) {
+		   colorPixel(c, x, y + 1*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 3
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               x++;
+           }
+
+
+           //column 4
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               x++;
+           }
+             
+           //column 5
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+
+	       x++;
+	   }
+
+           //column 6
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+
+	       x++;
+	   }
+
+
+           //column 7
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+scale_factor*1+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*5; i++) {
+		   colorPixel(c, x, y+6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 8
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*1; i++) {
+		   colorPixel(c, x, y+scale_factor*2+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+7*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+           break;
+
+       case '7':
+
+           //column 1
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 2
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+           break;
+
+           //column 3
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*7; i++) {
+		   colorPixel(c, x, y+5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           
+           //column 4
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*8; i++) {
+		   colorPixel(c, x, y+4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 5
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+3*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 6
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*4; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 7
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 8 blank
+           break;
+        
+       case '8':
+           //column 1
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+2*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+7*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 2
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*4; i++) {
+		   colorPixel(c, x, y+1*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*5; i++) {
+		   colorPixel(c, x, y+6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 3
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*4; i++) {
+		   colorPixel(c, x, y+4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 4
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 5
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 6
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*4; i++) {
+		   colorPixel(c, x, y+4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 7
+           for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*4; i++) {
+		   colorPixel(c, x, y+1*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*5; i++) {
+		   colorPixel(c, x, y+6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+
+           //column 8
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+2*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+7*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+	   break;
+
+      case '9':
+           //column 1
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+2*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*1; i++) {
+		   colorPixel(c, x, y+9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 2
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*5; i++) {
+		   colorPixel(c, x, y+1*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+ 
+           //column 3
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 4
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 5
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }        
+
+           //column 6
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*2; i++) {
+		   colorPixel(c, x, y+4*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+               for(i = 0; i < scale_factor*3; i++) {
+		   colorPixel(c, x, y+9*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+
+           //column 7
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*10; i++) {
+		   colorPixel(c, x, y+1*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
+           //column 8
+	   for(j = 0; j < scale_factor; j++) {
+ 	       for(i = 0; i < scale_factor*8; i++) {
+		   colorPixel(c, x, y+2*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+	       }
+	       x++;
+	   }
+
     }
 
     return 1; 
