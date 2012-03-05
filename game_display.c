@@ -59,9 +59,7 @@ int main (void) {
 		//runTestPatternRGB(309760);
 		//drawSmiley(430,350,65,1);
 		//drawSmiley(430,100,65,0);
-		//drawDigit(100, 100, '0', 1, cyan);
-
-	//}
+	}
   
 
    print("-- Exiting main() --\r\n");
@@ -438,77 +436,141 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
     //Draw digit 0,1......or 9
     switch(digit) {
         case '0':
-            //Draw a '0'. Go column by column
+            //Draw a '0'
+           //column 1
+           
+           //Multiply by scale_factor to get updated y offset
 
-            for(j = 0; j < scale_factor; j++) {
-                //column 1 and column 8 
-                for(i = 0; i < 8*scale_factor; i++) {
-                    colorPixel(c, x, y + 2 + i, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (8*scale_factor - 1 - j)), y + 2 + i, &pDisplay_data, &x_current, &y_current);
-                }
-                x++;
-            }
- 
-            for(j = 0; j < scale_factor; j++) { 
-                //column 2 and 7
-                for(i = 0; i < 10*scale_factor; i++) {
-                    colorPixel(c, x, y + 1 + i, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (8*scale_factor - scale_factor*2 - 1 - j), y + 1 + i, &pDisplay_data, &x_current, &y_current);
-                }
-                x++;
-            }
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*8; i++) {
+                   colorPixel(c, x, y + 2*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
 
-            for(j = 0; j < scale_factor; j++) {
-                //column 3 and 6
-                for(i = 0; i < 3*scale_factor; i++) {
-                    colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x, y + 9 + i,&pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (8*scale_factor - scale_factor*4 - 1 - j), y + i, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (8*scale_factor - scale_factor*4 - 1 - j), y + 9 + i,&pDisplay_data, &x_current, &y_current);
-                }
-                x++; 
-            }
+           //column 2
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*10; i++) {
+                   colorPixel(c, x, y + 1*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
 
-            for(j = 0; j < scale_factor; j++) {
-                //column 4 and 5
-                for(i = 0; i < 2*scale_factor; i++) {
-                    colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x, y + 5, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x, y + 10 + i,&pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (8*scale_factor - scale_factor*6 - 1 - j), y + i, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (8*scale_factor - scale_factor*6 - 1 - j), y + 5, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (8*scale_factor - scale_factor*6 - 1 - j), y + 10 + i,&pDisplay_data, &x_current, &y_current);
+            
+           //column 3
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + 9*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
 
-                }
-            }
-            break;
+           //column 4
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 5*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+           //column 5
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 5*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 10*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+           
+          //column 6
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               for(i = 0; i < scale_factor*3; i++) {
+                   colorPixel(c, x, y + 9*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+
+           //column 7
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*10; i++) {
+                   colorPixel(c, x, y + 1*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+
+           //column 8
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*8; i++) {
+                   colorPixel(c, x, y + 2*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+           break;
+
         case '1':
             //Draw a '1'. Go column by column
 
-            //column 1 (empty)
-            for(j = 0; j < scale_factor; j++)
-                x++;
-        
-            //column 2 and column 3
-            for(j = 0; j < scale_factor; j++) {
-                for(i = 0; i < 2*scale_factor; i++) {
-                    colorPixel(c, x, y + 1 + i, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (scale_factor*2 - 1 - j), y + 1 + i, &pDisplay_data, &x_current, &y_current);
-                }
-                x++; 
-            }           
+           //column 1
+           
+           //Multiply by scale_factor to get updated y offset
 
-            for(j = 0; j < scale_factor; j++) { 
-                //column 4 and 5  
-                for(i = 0; i < 12*scale_factor; i++) {
-                    colorPixel(c, x, y + i, &pDisplay_data, &x_current, &y_current);
-                    colorPixel(c, x + (scale_factor*2 - 1 - j), y + i, &pDisplay_data, &x_current, &y_current);
-                }
-                x++;
-            }
+           for(j = 0; j < scale_factor; j++) {
+               x++;
+           }
 
-            //column 6,7,8 (all empty)
-            break;
+           //column 2
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 1*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+           //column 3
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*2; i++) {
+                   colorPixel(c, x, y + 1*scale_factor + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+           
+
+           //column 4
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*12; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+
+           //column 5
+           for(j = 0; j < scale_factor; j++) {
+               for(i = 0; i < scale_factor*12; i++) {
+                   colorPixel(c, x, y + i,&pDisplay_data, &x_current, &y_current);
+               }
+               x++;
+           }
+           break;
+
         case '2':
            //Draw a '2'.
 
@@ -782,13 +844,14 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
 	       x++;
 	   }
           
-           //column 6
+           //column 8
 	   for(j = 0; j < scale_factor; j++) {
  	       for(i = 0; i < scale_factor*2; i++) {
 		   colorPixel(c, x, y + 6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
 	       }              
 	       x++;
 	   }
+	   break;
 
        case '5':
            //column 1
@@ -895,8 +958,9 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
 	       }
 	       x++;
 	   }
-     
-       case '6'
+       break;
+	   
+       case '6':
            //column 1
 	   for(j = 0; j < scale_factor; j++) {
  	       for(i = 0; i < scale_factor*8; i++) {
@@ -1014,8 +1078,7 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
 	       }
 	       x++;
 	   }
-           break;
-
+	   
            //column 3
 	   for(j = 0; j < scale_factor; j++) {
  	       for(i = 0; i < scale_factor*2; i++) {
@@ -1116,7 +1179,7 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
 		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
 	       }
                for(i = 0; i < scale_factor*2; i++) {
-		   colorPixel(c, x, y+6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+		   colorPixel(c, x, y+5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
 	       }
                for(i = 0; i < scale_factor*2; i++) {
 		   colorPixel(c, x, y+10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
@@ -1131,14 +1194,13 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
 		   colorPixel(c, x, y+i,&pDisplay_data, &x_current, &y_current);
 	       }
                for(i = 0; i < scale_factor*2; i++) {
-		   colorPixel(c, x, y+6*scale_factor+i,&pDisplay_data, &x_current, &y_current);
+		   colorPixel(c, x, y+5*scale_factor+i,&pDisplay_data, &x_current, &y_current);
 	       }
                for(i = 0; i < scale_factor*2; i++) {
 		   colorPixel(c, x, y+10*scale_factor+i,&pDisplay_data, &x_current, &y_current);
 	       }
 	       x++;
 	   }
-
 
            //column 6
 	   for(j = 0; j < scale_factor; j++) {
@@ -1276,6 +1338,8 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
 	       }
 	       x++;
 	   }
+	   
+	   break;
 
     }
 
