@@ -43,6 +43,7 @@ int runTestPatternRGB(int  word_count);
 void colorPixel(COLOR c, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0);
 void drawSmiley(int x0, int y0, int radius, int is_alive, int is_removing_a_smiley);
 int drawDigit(int x, int y, char digit, int scale_factor, COLOR c);
+int drawScore( int s );
 void drawGrid(COLOR c);
 int drawRandomSmileys(int numSmileys, int smileyPos[9]);
 void gameLoop();
@@ -263,6 +264,7 @@ int drawRandomSmileys(int numSmileys, int smileyPos[9]) {
    Box(2,1) = 216,322 to 430,479
    Box(2,2) = 432,322 to  639,479 
 */
+
 
 void drawGrid(COLOR c) {
     unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
@@ -1651,4 +1653,101 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
     }
 
     return 1; 
+}
+
+/* Draws "SCORE: %d", s and returns the number of digits from score which were written 
+   This assumes that there are only 4 possible digits in a score. If not, it will only print
+   the first 4 digits. Negative score appear as 0000 */
+
+int drawScore ( int s ) {
+	
+	// Variable Switchboard
+	int SCORE_LOC = 600;     // Define Starting Position for Score
+	int SCORE_Y = 15;        // How Far Down to Draw Score
+	int SCALE = 1;           // Define Digit Scale
+	COLOR COL_USED = white;  // Define the Color Used
+	
+	// Screen Variables
+	unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+    int x_current = 0;
+    int y_current = 0;
+	
+	int each_digit = 0;        // Grab Each Digit
+	int score[12][57] = {      // Score Matrix
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+	{0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0}, 
+	{1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0}, 
+	{1,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+	{1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0}, 
+	{0,1,1,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
+	{0,0,1,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
+	{0,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+	{1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0}, 
+	{1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
+	{0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}
+	};
+
+	// Print "SCORE: " 
+	int horiz;         // Hardcoded for Scale 1, This is good
+	int vert;          // Hardcoded for Scale 1, This is good
+	for (horiz = 0; horiz < 57; horiz++) {
+		for (vert = 0; vert < 12; vert++) {
+			if (score[vert][horiz] == 1)
+				colorPixel(COL_USED, (SCORE_LOC - 57 + horiz), (vert + SCORE_Y),&pDisplay_data, &x_current, &y_current);
+		}
+	}
+	
+	
+	// Print 4 Digits at Requested Scale
+	if (s > 0) {
+	
+		// Digit 1
+		if ( (each_digit = (s % 10)) < s) {
+			drawDigit(SCORE_LOC + SCALE*24, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
+			s = (s - each_digit)/10;                                                     // Remove Digit
+		}
+		else {
+			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*24, SCORE_Y, s+48, SCALE, COL_USED);                // Draw Only Digit
+			return 1;
+		}
+
+		// Digit 2
+		if ( (each_digit = (s % 10)) < s) {
+			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
+			s = (s - each_digit)/10;                                                     // Remove Digit
+		}
+		else {
+			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, s+48, SCALE, COL_USED);               // Draw Last Digit
+			return 2;
+		}
+			
+		// Digit 3
+		if ( (each_digit = (s % 10)) < s) {
+			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
+			s = (s - each_digit)/10;                                                    // Remove Digit
+		}
+		else {
+			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, s+48, SCALE, COL_USED);                // Draw Last Digit
+			return 3;
+		}
+		
+		drawDigit(SCORE_LOC, SCORE_Y, s+48, SCALE, COL_USED);                              // Draw Last Digit
+		return 4;
+
+	}
+	// Draw 0 Score
+	else {
+		drawDigit(SCORE_LOC, 50, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*8, 50, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*16, 50, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*24, 50, '0', SCALE, COL_USED);
+	}
+
 }
