@@ -145,7 +145,7 @@ int drawRandomSmileys(int numSmileys, int* smileyPos);
 //Drawing functions
 int colorScreen(int  word_count, COLOR c);
 int drawScore( int s );
-void drawSmiley(int x0, int y0, int radius, int is_alive);
+void drawSmiley(int x0, int y0, int radius, int is_alive, int is_removing_a_smiley);
 void drawGrid(COLOR c);
 int drawDigit(int x, int y, char digit, int scale_factor, COLOR c);
 
@@ -848,23 +848,29 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 }
 
 
-
 /* Call this function to draw a face centered at
    x0,y0 with the specified radius. is_alive specifies
    whether the face is dead or alive (0 = dead, 1 = alive).
    If the face is dead, draw a frowning face with X'ed out
    eyes. If the face has not been hit, draw a smiling
-   face with circles for eyes.
+   face with circles for eyes. Use is_removing_a_smiley to
+   specify whether you intend to remove a smiley.
 */
 
 
-void drawSmiley(int x, int y, int radius, int is_alive) {
+void drawSmiley(int x, int y, int radius, int is_alive, int is_removing_a_smiley) {
     int dist_mouth_from_center = radius*.6;
 	int dist_eyes_from_center = radius/2;
 	int pixels_in_branch_of_x = 8; //How many pixels in each of the 4 branches that compose the letter "X"
 	COLOR border_color = yellow;
         COLOR mouth_color  = magenta;
-	COLOR eye_color = blue;
+	COLOR eye_color = cyan;
+
+        if(is_removing_a_smiley) {
+            border_color = black;
+            mouth_color = black;
+            eye_color = black;
+        }
 
     //Draw the smiley's border
     drawCircle(x,y,radius,border_color);
@@ -873,26 +879,26 @@ void drawSmiley(int x, int y, int radius, int is_alive) {
 	if(is_alive) {
 	    //Draw the right eye first. .707 is approximately cos(45)= sin(45)
 	    drawCircle(x + (int)(dist_eyes_from_center * .707) , 
-		      y - (int)(dist_eyes_from_center * .707), 10, cyan);
+		      y - (int)(dist_eyes_from_center * .707), 10, eye_color);
 	    //Draw the left eye next. 
 		drawCircle(x - (int)(dist_eyes_from_center * .707) , 
-		      y - (int)(dist_eyes_from_center * .707), 10, cyan);	
+		      y - (int)(dist_eyes_from_center * .707), 10, eye_color);	
 			  
 	    //Now draw an arc to represent a smiley face
-		drawArc(x, y + dist_mouth_from_center, 20, magenta, 0);	
+		drawArc(x, y + dist_mouth_from_center, 20, mouth_color, 0);	
 	}
 	else {
 	    //Draw an X in place of each eye
 		
 	    //Draw the right eye first. .707 is approximately cos(45)= sin(45)
 		drawX(x + (int)(dist_eyes_from_center * .707) , 
-		      y - (int)(dist_eyes_from_center * .707), 10, cyan);
+		      y - (int)(dist_eyes_from_center * .707), 10, eye_color);
 	    //Draw the left eye next.
 		drawX(x - (int)(dist_eyes_from_center * .707) , 
-		      y - (int)(dist_eyes_from_center * .707), 10, cyan);	
+		      y - (int)(dist_eyes_from_center * .707), 10, eye_color);	
 			  
 	    //Now draw an upside down arc to represent a frowning face
-	    drawArc(x, y + dist_mouth_from_center, 20, magenta, 1);	
+	    drawArc(x, y + dist_mouth_from_center, 20, mouth_color, 1);	
 	}
 	
 }
