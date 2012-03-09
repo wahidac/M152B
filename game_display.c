@@ -143,7 +143,7 @@ int removeRandomSmiley(int* smileyPos);
 int drawRandomSmileys(int numSmileys, int* smileyPos);
 
 //Drawing functions
-int runTestPatternRGB(int  word_count);
+int colorScreen(int  word_count, COLOR c);
 int drawScore( int s );
 void drawSmiley(int x0, int y0, int radius, int is_alive);
 void drawGrid(COLOR c);
@@ -202,38 +202,10 @@ int main (void) {
 
    //print("-- Entering main() --\r\n");
 
-    runTestPatternRGB(309760);
-
-       //Begin test code for hand recognition (the 100 is arbitrary. actually calculate it eventually)
-       unsigned int old_pixel_values[100];
-
-       Xuint32 pos_x_old = 0;
-       Xuint32 pos_y_old = 0;
-
-
-       pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
-       pos_y = XGpio_DiscreteRead(&video_mung, 2);
-       //Save the pixel values of the space you are about to overwrite
-       savePixels(pos_x, pos_y, 15, old_pixel_values);
-       //Draw in the placement of the new hand
-       drawCircle(pos_x,pos_y,15,magenta);
-       pos_x_old = pos_x;
-       pos_y_old = pos_y;
-
-	while(1){
-		pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
-		pos_y = XGpio_DiscreteRead(&video_mung, 2);
-		xil_printf("x coordinate: %d\n", pos_x);
-		print("dbg\r\n");
-		//runTestPatternRGB(309760);
-		//drawSmiley(pos_x,pos_y,65,1);
-		//drawSmiley(pos_x,100,65,0);
-                updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
-                        pos_x, pos_y, 15, magenta);
-                pos_x_old = pos_x; 
-                pos_y_old = pos_y;
-	}
-  
+    //Color the screen black
+    colorScreen(309760, black);
+    //Start the main game loop
+    gameLoop();
 
    print("-- Exiting main() --\r\n");
    return 0;
@@ -257,19 +229,47 @@ void gameLoop() {
     int num_smileys_allowed = 9; //Max number of smileys to have out at any given moment (cap at 6 maybe)
     int num_smileys_on_screen = 0;
     int max_num_smileys = 6;
-    //variable for time to keep dead smiley on screen
     int remove_face = 500000; 
     int add_face = 500000;
     int random_number = 0;
 
+    //initialization
+
     //initialize grid to empty
     for(i = 0; i < 9; i++) {
-	    smileyPos[i] = 0;
-	}
+	    smileyPos[i] = 0;	
+    }
+
+
+    //NOTE: the 100 is arbitrary. actually calculate it eventually
+    //and pass it as an argument to savePixels and restorePixels!!
+
+    unsigned int old_pixel_values[100];
+
+    //Find initial location of user's hands at the start of the game
+    Xuint32 pos_x_old = 0;
+    Xuint32 pos_y_old = 0;
+
+    pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+    pos_y = XGpio_DiscreteRead(&video_mung, 2);
+
+    //Save the pixel values of the space you are about to overwrite
+    savePixels(pos_x, pos_y, 15, old_pixel_values);
+
+    //Draw in the placement of the new hand
+    drawCircle(pos_x,pos_y,15,magenta);
+
+    pos_x_old = pos_x;
+    pos_y_old = pos_y;
+
+    //draw in the 3x3 grid
+    drawGrid(green);
+
+
+    //The main loop
 	
     while(1) {
-	
- 
+
         //will probably need to tweak setting of remove_face and add_face
         //remove_face-- everytime we hit a face, and add_face for every 5 faces maybe?
         //increase max num moles after a shit load of them have been hit
@@ -301,16 +301,22 @@ void gameLoop() {
         } 
 
         //For testing, decrease probabilities steadly here
-   
 
+
+        //check where the user's hands are on the grid and display
+	pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+	pos_y = XGpio_DiscreteRead(&video_mung, 2);
+	xil_printf("x coordinate: %d\n", pos_x);
+	print("dbg\r\n");
+        updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
+                           pos_x, pos_y, 15, magenta);
+        pos_x_old = pos_x; 
+        pos_y_old = pos_y;
+   
         //check user grid position and see if he/she hit anything. 
-		//also, update position of gloves. this might be nasty because you need to
-		//redraw anything the glove previously covered up. Not sure what the best
-		//way to approach that is
-		//if so, mark mole dead and take note
+	//if so, mark mole dead and take note
         //of when it died. Remove it maybe .3 seconds later or so (can decrease as the game speeds up so
         //make proportional to remove_face or add_face? maybe keep an array of times to check on this?
-		
 	}
             
 }
@@ -1005,9 +1011,11 @@ void drawArc(int x0, int y0, int radius, COLOR border, int is_upside_down) {
 
 
 
-//Old code from the subtitle project
+/* Color the screen with color c. A lot of this code is taken from the
+old subtitle project. I have no idea what word_count is so I just left
+it in there. */
 
-int runTestPatternRGB(int  word_count) {
+int colorScreen(int  word_count, COLOR c) {
   	unsigned int i, x, wordnum;
   	volatile unsigned int rgb_value;
   	unsigned int block_start; 
@@ -1027,24 +1035,8 @@ int runTestPatternRGB(int  word_count) {
 	// write pattern to DDR
 	while (wordnum < word_count)
 		{
-		// Color pattern
-		if (i < 60)
-			rgb_value = rgb_value_array[1]; // white
-		else if (i < 120)
-			rgb_value = rgb_value_array[1]; // black
-		else if (i < 180)
-			rgb_value = rgb_value_array[1]; // yellow
-		else if (i < 240)
-			rgb_value = rgb_value_array[1]; // cyan
-		else if (i < 300)
-			rgb_value = rgb_value_array[1]; // green
-		else if (i < 360)
-			rgb_value = rgb_value_array[1]; // magenta
-		else if (i < 420)
-			rgb_value = rgb_value_array[1]; // red
-		else if (i < 480)
-			rgb_value = rgb_value_array[1]; // blue
-			
+		if (i < 480)
+	        	rgb_value = rgb_value_array[c]; 
 
 		*(pDisplay_data) = rgb_value;
 		pDisplay_data++;
@@ -1057,11 +1049,8 @@ int runTestPatternRGB(int  word_count) {
 			i++;
 		}
 	}
-  	
-  	print("Passed!\n\r");
   	return ;
-
-} // end runTestPattern
+} 
 
 
 
