@@ -18,13 +18,103 @@
 // Located in: ppc405_0/include/xparameters.h
 #include "xparameters.h"
 #include "xutil.h"
-#include <stdlib.h>
-#include <time.h>
-
+#include <xbasic_types.h>
+#include <xi2c_l.h>
+#include <uart.h>
+#include <xgpio.h>
 
 #define HORIZONTAL_PIXELS 640
 #define VERTICAL_PIXELS 480
 
+// GPIO stuff
+XGpio video_mung;
+
+#define GPO_REG_OFFSET 0x124
+//#define DECODER_ADDR 0x21  //Read: 0x43, Write: 0x42
+#define DECODER_ADDR 0x20 //Read: 0x41, Write: 0x40
+#define SEND_CNT 3
+#define RECV_CNT 3
+#define GPO_RESETS_OFF 1
+#define GPO_RESET_IIC 3
+#define GPO_RESET_DECODER 0
+
+struct VideoModule {
+  Xuint8 addr;
+  Xuint8 config_val;
+  Xuint8 actual_val;
+};
+
+#define DECODER_SVID_CONFIG_CNT 17
+struct VideoModule decoder_svid[] = { 
+  { 0x00, 0x06, 0 },
+  { 0x15, 0x00, 0 },
+  { 0x27, 0x58, 0 },
+  { 0x3a, 0x12, 0 },
+  { 0x50, 0x04, 0 },
+  { 0x0e, 0x80, 0 },
+  { 0x50, 0x20, 0 },
+  { 0x52, 0x18, 0 }, 
+  { 0x58, 0xed, 0 },
+  { 0x77, 0xc5, 0 },
+  { 0x7c, 0x93, 0 },
+  { 0x7d, 0x00, 0 },
+  { 0xd0, 0x48, 0 },
+  { 0xd5, 0xa0, 0 },
+  { 0xd7, 0xea, 0 },
+  { 0xe4, 0x3e, 0 },
+  { 0xea, 0x0f, 0 }, 
+  { 0x0e, 0x00, 0 } };
+
+#define DECODER_COMP_CONFIG_CNT 18
+struct VideoModule decoder_comp[] = { 
+  { 0x00, 0x04, 0 },
+  { 0x15, 0x00, 0 },
+  { 0x17, 0x41, 0 },
+  { 0x27, 0x58, 0 },
+  { 0x3a, 0x16, 0 }, 
+  { 0x50, 0x04, 0 },
+  { 0x0e, 0x80, 0 },
+  { 0x50, 0x20, 0 },
+  { 0x52, 0x18, 0 }, 
+  { 0x58, 0xed, 0 },
+  { 0x77, 0xc5, 0 },
+  { 0x7c, 0x93, 0 },
+  { 0x7d, 0x00, 0 },
+  { 0xd0, 0x48, 0 },
+  { 0xd5, 0xa0, 0 },
+  { 0xd7, 0xea, 0 },
+  { 0xe4, 0x3e, 0 },
+  { 0xea, 0x0f, 0 }, 
+  { 0x0e, 0x00, 0 } };
+
+
+#define DECODER_CMPNT_CONFIG_CNT 13
+struct VideoModule decoder_cmpnt[] = { 
+  { 0x00, 0x0a, 0 },
+  { 0x27, 0xd8, 0 },
+  { 0x50, 0x04, 0 },
+  { 0x0e, 0x80, 0 },
+  { 0x52, 0x18, 0 }, 
+  { 0x58, 0xed, 0 },
+  { 0x77, 0xc5, 0 },
+  { 0x7c, 0x93, 0 },
+  { 0x7d, 0x00, 0 },
+  { 0xd0, 0x48, 0 },
+  { 0xd5, 0xa0, 0 },
+  { 0xe4, 0x3e, 0 },
+  { 0x0e, 0x00, 0 } };
+
+//
+// funtion prototypes
+//
+
+void configDecoder(struct VideoModule *decoder, int config_cnt );
+void Reset_xup_decoder(void);
+void main_memu(void);
+unsigned char get_hex_byte();
+void edit_i2c_reg(void);
+
+//////////////////////////////////////////////////////////////////////
 
 enum _COLOR {
         white = 0,
@@ -38,37 +128,111 @@ enum _COLOR {
 } typedef COLOR;
 
 
-// funtion prototypes
-int runTestPatternRGB(int  word_count);
-void colorPixel(COLOR c, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0);
-void drawSmiley(int x0, int y0, int radius, int is_alive, int is_removing_a_smiley);
-int drawDigit(int x, int y, char digit, int scale_factor, COLOR c);
-int drawScore( int s );
-void drawGrid(COLOR c);
-int drawRandomSmileys(int numSmileys, int smileyPos[9]);
+/************ FUNCTION PROTOTYPES ****************/
+
+//Hand display functions
+void updateHandPosition(int x_current, int y_current, unsigned int* old_pixel_values, 
+                        int x, int y, int hand_radius, COLOR hand_color);
+void savePixels(int x0, int y0, int radius, unsigned int *old_pixel_values);
+void restorePixels(int x0, int y0, int radius, unsigned int *old_pixel_values);
+
+
+//Gameplay functions
 void gameLoop();
+int removeRandomSmiley(int* smileyPos);
+int drawRandomSmileys(int numSmileys, int* smileyPos);
+
+//Drawing functions
+int runTestPatternRGB(int  word_count);
+int drawScore( int s );
+void drawSmiley(int x0, int y0, int radius, int is_alive);
+void drawGrid(COLOR c);
+int drawDigit(int x, int y, char digit, int scale_factor, COLOR c);
+
+//Basic pixel manipulation functions
+void colorPixel(COLOR c, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0);
+unsigned int returnPixelValue(int x, int y, unsigned int **pDisplay_data, int *x0, int *y0);
+void setPixel(unsigned int value, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0);
 
 
 //Helper functions for drawSmiley
 void drawCircle(int x0, int y0, int radius, COLOR border);
 void drawArc(int x0, int y0, int radius, COLOR border, int is_upside_down);
 unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c);
+
 //====================================================
 
 int main (void) {
+  Xuint8 start_addr = 0;
+  Xuint8 send_data[SEND_CNT] = {0};
+  Xuint32 send_cnt;
+  Xuint8 recv_data[RECV_CNT] = {0};
+  Xuint32 recv_cnt;
+  Xuint8 i;
+  Xuint8 hold = 0;
+  int wait_delay = 50000000;
+  Xuint32 pos_x = 0;
+  Xuint32 pos_y = 0;
+  Xuint32 maxbright, xorval = 0x01;
+  Xuint32 frame = 0;
 
-   print("-- Entering main() --\r\n");
+    uartInit(XPAR_RS232_UART_1_BASEADDR);
+	print("\r\nup!\r\n");
+
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESETS_OFF);// deassert reset to vid decoder
+    recv_cnt = 0;
+	print("\r\nXUP-V2Pro Video Decoder Expansion Board Video Pass Through Test  ");
+    print("\r\nDetecting Video Decoder...\t");
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESET_IIC);
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESETS_OFF);
+    recv_cnt = XI2c_RSRecv(XPAR_I2C_BASEADDR, DECODER_ADDR, start_addr, 
+			   recv_data, 1);
+    if( recv_cnt != 1 )
+      print("No device detected!\r\n");
+    else {
+	  configDecoder(decoder_comp, DECODER_COMP_CONFIG_CNT);
+      print("Decoder detected! Configuring for composite video -  default.\r\n");
+	  XGpio_Initialize(&video_mung, XPAR_VIDEO_MUNG_DEVICE_ID);
+	  main_memu();
+	  
+	  // begin handling brightness...
+	}
+  
+  print("\r\nTest Complete!\r\n\r\n");
+
+   //print("-- Entering main() --\r\n");
 
     runTestPatternRGB(309760);
 
-	//while(1){
+       //Begin test code for hand recognition (the 100 is arbitrary. actually calculate it eventually)
+       unsigned int old_pixel_values[100];
+
+       Xuint32 pos_x_old = 0;
+       Xuint32 pos_y_old = 0;
+
+
+       pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+       pos_y = XGpio_DiscreteRead(&video_mung, 2);
+       //Save the pixel values of the space you are about to overwrite
+       savePixels(pos_x, pos_y, 15, old_pixel_values);
+       //Draw in the placement of the new hand
+       drawCircle(pos_x,pos_y,15,magenta);
+       pos_x_old = pos_x;
+       pos_y_old = pos_y;
+
+	while(1){
+		pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+		pos_y = XGpio_DiscreteRead(&video_mung, 2);
+		xil_printf("x coordinate: %d\n", pos_x);
 		print("dbg\r\n");
-		runTestPatternRGB(309760);
-		drawGrid(green);
-		gameLoop();
-		//drawSmiley(430,350,65,1,0);
-		//drawSmiley(430,100,65,0,0);
-	//}
+		//runTestPatternRGB(309760);
+		//drawSmiley(pos_x,pos_y,65,1);
+		//drawSmiley(pos_x,100,65,0);
+                updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
+                        pos_x, pos_y, 15, magenta);
+                pos_x_old = pos_x; 
+                pos_y_old = pos_y;
+	}
   
 
    print("-- Exiting main() --\r\n");
@@ -77,7 +241,13 @@ int main (void) {
 
 
 
-/* Main game loop. Could copy into main */
+
+
+/***************************** BEGIN MAIN GAME LOOP ***************************************************/
+
+
+
+/* Main game loop */
 
 void gameLoop() {
     int smileyPos[9];
@@ -141,18 +311,203 @@ void gameLoop() {
         //of when it died. Remove it maybe .3 seconds later or so (can decrease as the game speeds up so
         //make proportional to remove_face or add_face? maybe keep an array of times to check on this?
 		
-		}
+	}
             
 }
 
 
+/********************************* END MAIN GAME LOOP ***************************************************/
+
+
+
+/*************************** BEGIN FUNCTIONS TO HANDLE DISPLAYING HAND POSITION *************************/
+
+
+
+/* Save all of the original pixels that are going to get covered up by the new hand
+   and save them in the old_pixel_values array. radius represents the amount of
+   pixels that need to be stored. This function is a near direct clone of
+   drawCircle, except in all parts of drawCircle where colorPixel is used
+   to color a pixel, the current pixel value is saved in the old_pixel_values
+   array.
+
+   //NOTE: implement some sort of bounds checking functionality here!!!!!
+*/
+
+void savePixels(int x0, int y0, int radius, unsigned int *old_pixel_values) {
+  unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+
+  int f = 1 - radius;
+  int ddF_x = 1;
+  int ddF_y = -2 * radius;
+  int x = 0;
+  int y = radius;
+  int x_current = 0;
+  int y_current = 0;
+ 
+  //Bottom Middle
+  *old_pixel_values = returnPixelValue(x0,y0 + radius, &pDisplay_data, &x_current, &y_current);
+   old_pixel_values++;
+
+  //Top Middle
+  *old_pixel_values = returnPixelValue(x0,y0 - radius, &pDisplay_data, &x_current, &y_current);
+  old_pixel_values++;
+  
+  //Right Middle
+  *old_pixel_values = returnPixelValue(x0+radius,y0, &pDisplay_data, &x_current, &y_current);
+  old_pixel_values++;
+  
+  //Left Middle
+  *old_pixel_values = returnPixelValue(x0-radius,y0, &pDisplay_data, &x_current, &y_current);
+  old_pixel_values++;
+  
+  while(x < y)
+  {
+    // ddF_x == 2 * x + 1;
+    // ddF_y == -2 * y;
+    // f == x*x + y*y - radius*radius + 2*x - y + 1;
+    if(f >= 0) 
+    {
+      y--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f += ddF_x;    
+
+   *old_pixel_values = returnPixelValue(x0 + x,y0 + y, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+    
+   *old_pixel_values = returnPixelValue(x0 - x,y0 + y, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+   
+   *old_pixel_values = returnPixelValue(x0 + x,y0 - y, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+    
+   *old_pixel_values = returnPixelValue(x0 - x,y0 - y, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+    
+   *old_pixel_values = returnPixelValue(x0 + y,y0 + x, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+
+    *old_pixel_values = returnPixelValue(x0 - y,y0 + x, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+
+    *old_pixel_values = returnPixelValue(x0 + y,y0 - x, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+
+    *old_pixel_values = returnPixelValue(x0 - y,y0 - x, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+  }
+}
+
+
+/* Nearly identical to savePixels except we are restoring the pixels rather than saving them */
+
+void restorePixels(int x0, int y0, int radius, unsigned int *old_pixel_values) {
+  unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+
+  int f = 1 - radius;
+  int ddF_x = 1;
+  int ddF_y = -2 * radius;
+  int x = 0;
+  int y = radius;
+  int x_current = 0;
+  int y_current = 0;
+ 
+  //Bottom Middle
+  setPixel(*old_pixel_values, x0, y0 + radius, &pDisplay_data, &x_current, &y_current);
+  old_pixel_values++;
+
+  //Top Middle
+  setPixel(*old_pixel_values, x0,y0 - radius, &pDisplay_data, &x_current, &y_current);
+  old_pixel_values++;
+  
+  //Right Middle
+  setPixel(*old_pixel_values, x0+radius,y0, &pDisplay_data, &x_current, &y_current);
+  old_pixel_values++;
+  
+  //Left Middle
+  setPixel(*old_pixel_values, x0-radius,y0, &pDisplay_data, &x_current, &y_current);
+  old_pixel_values++;
+  
+  while(x < y)
+  {
+    // ddF_x == 2 * x + 1;
+    // ddF_y == -2 * y;
+    // f == x*x + y*y - radius*radius + 2*x - y + 1;
+    if(f >= 0) 
+    {
+      y--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f += ddF_x;    
+
+    setPixel(*old_pixel_values, x0 + x,y0 + y, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+    
+    setPixel(*old_pixel_values,x0 - x,y0 + y, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+   
+    setPixel(*old_pixel_values, x0 + x,y0 - y, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+    
+    setPixel(*old_pixel_values, x0 - x,y0 - y, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+    
+    setPixel(*old_pixel_values, x0 + y,y0 + x, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+
+    setPixel(*old_pixel_values, x0 - y,y0 + x, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+
+    setPixel(*old_pixel_values, x0 + y,y0 - x, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+
+    setPixel(*old_pixel_values, x0 - y,y0 - x, &pDisplay_data, &x_current, &y_current);
+    old_pixel_values++;
+  }
+}
+
+
+
+/* Need to save state of what the pixels are that the hand is going over. On call to
+   updateHandPosition, restore all the pixels the circle centered at x_current, y_current
+   originally covered up when it was first drawn. */
+
+void updateHandPosition(int x_current, int y_current, unsigned int* old_pixel_values, 
+                        int x, int y, int hand_radius, COLOR hand_color) {
+
+    //Restore the original pixel values
+    restorePixels(x_current, y_current, hand_radius, old_pixel_values);
+
+    //Save the pixel values of the space you are about to overwrite
+    savePixels(x, y, hand_radius, old_pixel_values);
+
+    //Draw in the placement of the new hand
+    drawCircle(x,y,hand_radius,hand_color);
+}
+
+
+/************************** END FUNCTIONS TO HANDLE DISPLAYING HAND POSITION ***************************/
+
+
+
+
+
+
+/************************* BEGIN FUNCTIONS TO HANDLE GAMEPLAY DYNAMICS ********************************/
 
 
 /* Remove a random smiley. Return 1 if a smiley
    was successfully removed, 0 else
 */
 
-int removeRandomSmiley(int smileyPos[9]) {
+int removeRandomSmiley(int* smileyPos) {
     int i = 0;
     int availableBoxes[9];
     int x = 0;
@@ -201,7 +556,7 @@ int removeRandomSmiley(int smileyPos[9]) {
    smiley in that box.
 */
 
-int drawRandomSmileys(int numSmileys, int smileyPos[9]) {
+int drawRandomSmileys(int numSmileys, int *smileyPos) {
     int i = 0;
     int j = 0;
     int availableBoxes[9];
@@ -253,6 +608,16 @@ int drawRandomSmileys(int numSmileys, int smileyPos[9]) {
 }
 
 
+/************************* END FUNCTIONS TO HANDLE GAMEPLAY DYNAMICS ********************************/
+
+
+
+
+
+
+
+/********************************** BEGIN BASIC DRAWING FUNCTIONS ***********************************/
+
 /* Draw a 3 x 3 grid onto the screen. The dimensions are as follows:
    Box(0,0) = 0,0 to 214,159
    Box(1,0) = 216,0 to 430,159
@@ -264,7 +629,6 @@ int drawRandomSmileys(int numSmileys, int smileyPos[9]) {
    Box(2,1) = 216,322 to 430,479
    Box(2,2) = 432,322 to  639,479 
 */
-
 
 void drawGrid(COLOR c) {
     unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
@@ -291,82 +655,104 @@ void drawGrid(COLOR c) {
         colorPixel(c,431,i,&pDisplay_data, &x_current, &y_current);
     }
 }
-    
 
-/* Change the value of GridX,GridY to specify the box the arguments x,y lie in.
-   GridX,GridY take values from 0,0 to 2,2 and represent the boxes in the grid
-   treating the top-left most box as box 0,0 and the bottom right box
-   as box 2,2. Set GridX and GridY to -1,-1 if x,y falls in no grid.
-*/
-void calculateGridPosition(int* GridX, int* GridY, int x, int y) {
-    if(x >= 0 && x < 215) { //Lies in first column
-        *GridX = 0;
-        if( y >= 0 && y < 160)
-            *GridY = 0;
-        else if( y > 160 && y < 321 )
-            *GridY = 1;
-        else if( y > 321 && y < 480 )
-            *GridY = 2;
-        else {
-            *GridX = -1;
-            *GridY = -1;
-        }
-        return; 
-    }
-    if(x > 215 && x < 431) { //Lies in second column
-        *GridX = 0;
-        if( y >= 0 && y < 160)
-            *GridY = 0;
-        else if( y > 160 && y < 321 )
-            *GridY = 1;
-        else if( y > 321 && y < 480 )
-            *GridY = 2;
-        else {
-            *GridX = -1;
-            *GridY = -1;
-        }
-        return;
-    }
-    if(x > 431 && x < 640) { //Lies in third column
-        *GridX = 0;
-        if( y >= 0 && y < 160)
-            *GridY = 0;
-        else if( y > 160 && y < 321 )
-            *GridY = 1;
-        else if( y > 321 && y < 480 )
-            *GridY = 2;
-        else {
-            *GridX = -1;
-            *GridY = -1;
-        }
-        return;
-    }
-   
-    *GridX = -1;
-    *GridY = -1;
+
+/* Draws "SCORE: %d", s and returns the number of digits from score which were written 
+   This assumes that there are only 4 possible digits in a score. If not, it will only print
+   the first 4 digits. Negative score appear as 0000 */
+
+int drawScore ( int s ) {
+	
+	// Variable Switchboard
+	int SCORE_LOC = 600;     // Define Starting Position for Score
+	int SCORE_Y = 15;        // How Far Down to Draw Score
+	int SCALE = 1;           // Define Digit Scale
+	COLOR COL_USED = white;  // Define the Color Used
+	
+	// Screen Variables
+	unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+    int x_current = 0;
+    int y_current = 0;
+	
+	int each_digit = 0;        // Grab Each Digit
+	int score[12][57] = {      // Score Matrix
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+	{0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0}, 
+	{1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0}, 
+	{1,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+	{1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0}, 
+	{0,1,1,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
+	{0,0,1,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
+	{0,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+	{1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0}, 
+	{1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
+	{0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}
+	};
+
+	// Print "SCORE: " 
+	int horiz;         // Hardcoded for Scale 1, This is good
+	int vert;          // Hardcoded for Scale 1, This is good
+	for (horiz = 0; horiz < 57; horiz++) {
+		for (vert = 0; vert < 12; vert++) {
+			if (score[vert][horiz] == 1)
+				colorPixel(COL_USED, (SCORE_LOC - 57 + horiz), (vert + SCORE_Y),&pDisplay_data, &x_current, &y_current);
+		}
+	}
+	
+	
+	// Print 4 Digits at Requested Scale
+	if (s > 0) {
+	
+		// Digit 1
+		if ( (each_digit = (s % 10)) < s) {
+			drawDigit(SCORE_LOC + SCALE*24, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
+			s = (s - each_digit)/10;                                                     // Remove Digit
+		}
+		else {
+			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*24, SCORE_Y, s+48, SCALE, COL_USED);                // Draw Only Digit
+			return 1;
+		}
+
+		// Digit 2
+		if ( (each_digit = (s % 10)) < s) {
+			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
+			s = (s - each_digit)/10;                                                     // Remove Digit
+		}
+		else {
+			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, s+48, SCALE, COL_USED);               // Draw Last Digit
+			return 2;
+		}
+			
+		// Digit 3
+		if ( (each_digit = (s % 10)) < s) {
+			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
+			s = (s - each_digit)/10;                                                    // Remove Digit
+		}
+		else {
+			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, s+48, SCALE, COL_USED);                // Draw Last Digit
+			return 3;
+		}
+		
+		drawDigit(SCORE_LOC, SCORE_Y, s+48, SCALE, COL_USED);                              // Draw Last Digit
+		return 4;
+
+	}
+	// Draw 0 Score
+	else {
+		drawDigit(SCORE_LOC, 50, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*8, 50, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*16, 50, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*24, 50, '0', SCALE, COL_USED);
+	}
+
 }
-
-
-void testHandPlacement() {
-    while(1) { 
-        //Read coordinates from GPIO
-        //displayHandPosition(x,y,0);
-    }
-}
-
-
-
-/* Takes a coordinate x,y and draws a small circle to represent
-   the position of one of the user's hands. isOpen specifies 
-   whether the user's hands have opened (indicating a hit)
-*/
-
-
-void displayHandPosition(int x, int y, int isOpen) {
-    //Ignore isOpen for now
-    drawCircle(x,y,10,magenta);
-}
-
 
 
 /* 
@@ -462,24 +848,17 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
    whether the face is dead or alive (0 = dead, 1 = alive).
    If the face is dead, draw a frowning face with X'ed out
    eyes. If the face has not been hit, draw a smiling
-   face with circles for eyes. Use is_removing_a_smiley to
-   specify whether you intend to remove a smiley.
+   face with circles for eyes.
 */
 
 
-void drawSmiley(int x, int y, int radius, int is_alive, int is_removing_a_smiley) {
+void drawSmiley(int x, int y, int radius, int is_alive) {
     int dist_mouth_from_center = radius*.6;
 	int dist_eyes_from_center = radius/2;
 	int pixels_in_branch_of_x = 8; //How many pixels in each of the 4 branches that compose the letter "X"
 	COLOR border_color = yellow;
         COLOR mouth_color  = magenta;
-	COLOR eye_color = cyan;
-
-        if(is_removing_a_smiley) {
-            border_color = black;
-            mouth_color = black;
-            eye_color = black;
-        }
+	COLOR eye_color = blue;
 
     //Draw the smiley's border
     drawCircle(x,y,radius,border_color);
@@ -488,26 +867,26 @@ void drawSmiley(int x, int y, int radius, int is_alive, int is_removing_a_smiley
 	if(is_alive) {
 	    //Draw the right eye first. .707 is approximately cos(45)= sin(45)
 	    drawCircle(x + (int)(dist_eyes_from_center * .707) , 
-		      y - (int)(dist_eyes_from_center * .707), 10, eye_color);
+		      y - (int)(dist_eyes_from_center * .707), 10, cyan);
 	    //Draw the left eye next. 
 		drawCircle(x - (int)(dist_eyes_from_center * .707) , 
-		      y - (int)(dist_eyes_from_center * .707), 10, eye_color);	
+		      y - (int)(dist_eyes_from_center * .707), 10, cyan);	
 			  
 	    //Now draw an arc to represent a smiley face
-		drawArc(x, y + dist_mouth_from_center, 20, mouth_color, 0);	
+		drawArc(x, y + dist_mouth_from_center, 20, magenta, 0);	
 	}
 	else {
 	    //Draw an X in place of each eye
 		
 	    //Draw the right eye first. .707 is approximately cos(45)= sin(45)
 		drawX(x + (int)(dist_eyes_from_center * .707) , 
-		      y - (int)(dist_eyes_from_center * .707), 10, eye_color);
+		      y - (int)(dist_eyes_from_center * .707), 10, cyan);
 	    //Draw the left eye next.
 		drawX(x - (int)(dist_eyes_from_center * .707) , 
-		      y - (int)(dist_eyes_from_center * .707), 10, eye_color);	
+		      y - (int)(dist_eyes_from_center * .707), 10, cyan);	
 			  
 	    //Now draw an upside down arc to represent a frowning face
-	    drawArc(x, y + dist_mouth_from_center, 20, mouth_color, 1);	
+	    drawArc(x, y + dist_mouth_from_center, 20, magenta, 1);	
 	}
 	
 }
@@ -515,9 +894,7 @@ void drawSmiley(int x, int y, int radius, int is_alive, int is_removing_a_smiley
 
 
 /* drawCircle will draw a circle of color border centered at x0,y0 
-   with the specified radius. MAKE SURE YOU DON'T DRAW ANYTHING
-   OUT OF BOUNDS BECAUSE THERE AREN'T REALLY ANY MAJOR ERROR
-   CHECKS!!!!
+   with the specified radius. 
 */
 
 void drawCircle(int x0, int y0, int radius, COLOR border) {
@@ -627,35 +1004,6 @@ void drawArc(int x0, int y0, int radius, COLOR border, int is_upside_down) {
 }
 
 
-/* 
-    Color a pixel at location x,y with color c. x0,y0 mark the current position of the
-display pointer pDisplay_data in terms of pixels with x0 representing pixel column and
-y0 representing pixel row. Returns a pointer to new pixel position. If an invalid pixel
-position was specified, return NULL. Treat the top left of the screen as pixel 0,0
-*/
-
-void colorPixel(COLOR c, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0){
-    volatile unsigned int rgb_value_array[16] = {0x00FFFFFF, 0x00000000, 0x00FFFF00, 0x0000FFFF, 0x0000FF00
-	  											  ,0x00FF00FF, 0x00FF0000, 0x000000FF};
-    int pixels_away = 0; //How many pixels away is the destination pixel, counting from left to right
-											
-	//Make sure x,y are in bounds	
-	if(x < 0 || x >= HORIZONTAL_PIXELS || y < 0 || y >= VERTICAL_PIXELS) {
-	    *pDisplay_data = NULL;
-	    return ;
-    }
-		
-	//Advance display pointer to correct position.
-	pixels_away = (y - *y0)*(1024) + (x-*x0);
-	*pDisplay_data += pixels_away;
-	**pDisplay_data = rgb_value_array[c];
-
-        //update current position
-        *y0 = y;
-        *x0 = x;
-}										
-												  
-
 
 //Old code from the subtitle project
 
@@ -674,7 +1022,6 @@ int runTestPatternRGB(int  word_count) {
   	x = 0;
 	i = 0;
 
-	print("\n\rRunning rgb Test Pattern...\t");
   	print("...\t");
 
 	// write pattern to DDR
@@ -704,9 +1051,9 @@ int runTestPatternRGB(int  word_count) {
 		wordnum++;
 		x++;
 
-		if (x >= 640){
+		if (x >= HORIZONTAL_PIXELS){
 			x = 0;
-		 	pDisplay_data += (1024 - 640);
+		 	pDisplay_data += (1024 - HORIZONTAL_PIXELS);
 			i++;
 		}
 	}
@@ -715,7 +1062,6 @@ int runTestPatternRGB(int  word_count) {
   	return ;
 
 } // end runTestPattern
-
 
 
 
@@ -1655,99 +2001,232 @@ int drawDigit(int x, int y, char digit, int scale_factor, COLOR c) {
     return 1; 
 }
 
-/* Draws "SCORE: %d", s and returns the number of digits from score which were written 
-   This assumes that there are only 4 possible digits in a score. If not, it will only print
-   the first 4 digits. Negative score appear as 0000 */
 
-int drawScore ( int s ) {
-	
-	// Variable Switchboard
-	int SCORE_LOC = 600;     // Define Starting Position for Score
-	int SCORE_Y = 15;        // How Far Down to Draw Score
-	int SCALE = 1;           // Define Digit Scale
-	COLOR COL_USED = white;  // Define the Color Used
-	
-	// Screen Variables
-	unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
-    int x_current = 0;
-    int y_current = 0;
-	
-	int each_digit = 0;        // Grab Each Digit
-	int score[12][57] = {      // Score Matrix
-	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
-	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
-	{0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0}, 
-	{1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0}, 
-	{1,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
-	{1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0}, 
-	{0,1,1,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
-	{0,0,1,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
-	{0,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
-	{1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0}, 
-	{1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}, 
-	{0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0}
-	};
 
-	// Print "SCORE: " 
-	int horiz;         // Hardcoded for Scale 1, This is good
-	int vert;          // Hardcoded for Scale 1, This is good
-	for (horiz = 0; horiz < 57; horiz++) {
-		for (vert = 0; vert < 12; vert++) {
-			if (score[vert][horiz] == 1)
-				colorPixel(COL_USED, (SCORE_LOC - 57 + horiz), (vert + SCORE_Y),&pDisplay_data, &x_current, &y_current);
-		}
-	}
-	
-	
-	// Print 4 Digits at Requested Scale
-	if (s > 0) {
-	
-		// Digit 1
-		if ( (each_digit = (s % 10)) < s) {
-			drawDigit(SCORE_LOC + SCALE*24, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
-			s = (s - each_digit)/10;                                                     // Remove Digit
-		}
-		else {
-			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
-			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, '0', SCALE, COL_USED);
-			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, '0', SCALE, COL_USED);
-			drawDigit(SCORE_LOC + SCALE*24, SCORE_Y, s+48, SCALE, COL_USED);                // Draw Only Digit
-			return 1;
-		}
 
-		// Digit 2
-		if ( (each_digit = (s % 10)) < s) {
-			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
-			s = (s - each_digit)/10;                                                     // Remove Digit
-		}
-		else {
-			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
-			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, '0', SCALE, COL_USED);
-			drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, s+48, SCALE, COL_USED);               // Draw Last Digit
-			return 2;
-		}
-			
-		// Digit 3
-		if ( (each_digit = (s % 10)) < s) {
-			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, each_digit+48, SCALE, COL_USED);       // Draw First Digit
-			s = (s - each_digit)/10;                                                    // Remove Digit
-		}
-		else {
-			drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
-			drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, s+48, SCALE, COL_USED);                // Draw Last Digit
-			return 3;
-		}
+/********************************** END BASIC DRAWING FUNCTIONS ***********************************/
+
+
+
+/******************************** BEGIN PIXEL MANIPULATION FUNCTIONS ******************************/
+
+/* 
+    Color a pixel at location x,y with color c. x0,y0 mark the current position of the
+display pointer pDisplay_data in terms of pixels with x0 representing pixel column and
+y0 representing pixel row. Returns a pointer to new pixel position. If an invalid pixel
+position was specified, return NULL. Treat the top left of the screen as pixel 0,0
+*/
+
+void colorPixel(COLOR c, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0){
+    volatile unsigned int rgb_value_array[16] = {0x00FFFFFF, 0x00000000, 0x00FFFF00, 0x0000FFFF, 0x0000FF00
+	  											  ,0x00FF00FF, 0x00FF0000, 0x000000FF};
+    int pixels_away = 0; //How many pixels away is the destination pixel, counting from left to right
+											
+	//Make sure x,y are in bounds	
+	if(x < 0 || x >= HORIZONTAL_PIXELS || y < 0 || y >= VERTICAL_PIXELS) {
+	    return ; //don't do anything
+    }
 		
-		drawDigit(SCORE_LOC, SCORE_Y, s+48, SCALE, COL_USED);                              // Draw Last Digit
-		return 4;
+	//Advance display pointer to correct position.
+	pixels_away = (y - *y0)*(1024) + (x-*x0);
+	*pDisplay_data += pixels_away;
+        **pDisplay_data = rgb_value_array[c];
 
-	}
-	// Draw 0 Score
-	else {
-		drawDigit(SCORE_LOC, 50, '0', SCALE, COL_USED);
-		drawDigit(SCORE_LOC + SCALE*8, 50, '0', SCALE, COL_USED);
-		drawDigit(SCORE_LOC + SCALE*16, 50, '0', SCALE, COL_USED);
-		drawDigit(SCORE_LOC + SCALE*24, 50, '0', SCALE, COL_USED);
-	}
+        //update current position
+        *y0 = y;
+        *x0 = x;
+}			
 
+
+/* return the numeric value of the pixel located at coordinates x,y */
+
+unsigned int returnPixelValue(int x, int y, unsigned int **pDisplay_data, int *x0, int *y0){
+    int pixels_away = 0; //How many pixels away is the destination pixel, counting from left to right
+											
+	//Make sure x,y are in bounds	
+	if(x < 0 || x >= HORIZONTAL_PIXELS || y < 0 || y >= VERTICAL_PIXELS) {
+	    return -1; 
+    }
+		
+	//Advance display pointer to correct position.
+	pixels_away = (y - *y0)*(1024) + (x-*x0);
+	*pDisplay_data += pixels_away;
+
+        //update current position
+        *y0 = y;
+        *x0 = x;
+		
+	return **pDisplay_data;
+}			
+
+
+/* More general version of setPixel that lets you set a pixel to any possible value */
+
+void setPixel(unsigned int value, int x, int y, unsigned int **pDisplay_data, int *x0, int *y0){
+    volatile unsigned int rgb_value_array[16] = {0x00FFFFFF, 0x00000000, 0x00FFFF00, 0x0000FFFF, 0x0000FF00
+	  											  ,0x00FF00FF, 0x00FF0000, 0x000000FF};
+    int pixels_away = 0; //How many pixels away is the destination pixel, counting from left to right
+											
+	//Make sure x,y are in bounds	
+	if(x < 0 || x >= HORIZONTAL_PIXELS || y < 0 || y >= VERTICAL_PIXELS) {
+	    return ; //don't do anything
+    }
+		
+	//Advance display pointer to correct position.
+	pixels_away = (y - *y0)*(1024) + (x-*x0);
+	*pDisplay_data += pixels_away;
+        **pDisplay_data = value;
+
+        //update current position
+        *y0 = y;
+        *x0 = x;
 }
+
+
+/******************************** END PIXEL MANIPULATION FUNCTIONS ******************************/
+
+
+
+
+/******************************** BEGIN MISC HELPER FUNCTIONS **********************************/
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////
+void main_memu(void)
+{
+  unsigned char x, s;
+   s = 0;
+
+
+	Reset_xup_decoder();
+	configDecoder(decoder_svid, DECODER_SVID_CONFIG_CNT);
+  return;
+} // end main_menu
+
+
+void configDecoder(struct VideoModule *decoder, int config_cnt ) 
+{
+  Xuint16 send_cnt, i;
+  Xuint8 send_data[2] = {0};
+  Xuint8 success = 1;
+  send_cnt = 2;
+  print("  Configuring Decoder...\t");
+  for( i = 0; i < config_cnt; i++ )
+   {
+
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESET_IIC);
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESETS_OFF);
+    send_data[0] = decoder[i].addr;
+
+    send_data[1] = decoder[i].config_val;
+
+    send_cnt = XI2c_Send(XPAR_I2C_BASEADDR, DECODER_ADDR, send_data, 2);
+
+    if( send_cnt != 2 ) 
+	 {
+      xil_printf("Error writing to address %02x\r\n", decoder[i].addr);
+      success = 0;
+      break;
+     }
+   }
+
+  if( success )
+    print("SUCCESS!\r\n");
+
+} // end configDecoder()
+
+void Reset_xup_decoder(void)
+{
+int send_cnt = 0;
+int wait_delay = 500000;
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESET_DECODER);  // reset  to vid decoder
+	while(wait_delay)
+   {
+    wait_delay = wait_delay -1;
+	}
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESETS_OFF);  // set resets de - asserted
+	wait_delay = 5000000;
+   while(wait_delay)
+   {
+    wait_delay = wait_delay -1;
+	}
+   return;
+}  // end Reset_xup_decoder
+
+unsigned char get_hex_byte()
+{
+  unsigned char s ,x, pass;
+  pass = 0;
+  s = 0;
+  x = 0;
+    while( s != 13)
+    {
+    s = uartRead();
+	xil_printf("%c",s); //echo back 
+	if((s < '0' ||  s >'f')  && s != 13){
+	  print(" invalid entry start over \n\r");
+	  x = 0;
+	  }
+	if( s == 13){
+	  break;
+	  }
+	 else{
+	  if(pass != 0){
+	   x= x*16;
+	   }
+	  if(s > 47 && s < 58){
+	  s = ( s - '0');
+	  x = x + s;
+	  }
+	  else if( s == 'a'){
+	   x = x + 10;
+	   }
+	   else if( s == 'b'){
+	   x = x + 11;
+	   }
+	   else if( s == 'c'){
+	   x = x + 12;
+	   }
+	   else if( s == 'd'){
+	   x = x + 13;
+	   }
+	   else if( s == 'e'){
+	   x = x + 14;
+	   }
+	   else if( s == 'f'){
+	   x = x + 15;
+	   }
+      pass++;
+	  }
+	}
+
+	return x;
+}
+void edit_i2c_reg(void)
+{
+  Xuint8 send_data[2] = {0};
+  int send_cnt = 0;
+  char s = 0;
+  
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESET_IIC);
+    XI2c_mWriteReg(XPAR_I2C_BASEADDR, GPO_REG_OFFSET, GPO_RESETS_OFF);
+	print("\r\nEdit I2C Register Settings Mode.\r\n");
+   do {
+		print("\r\nEnter I2C Hex Register Address  ");
+		send_data[0] = get_hex_byte();
+		print("\r\nEnter I2C Hex Register Data     ");
+		send_data[1] = get_hex_byte();
+		send_cnt = XI2c_Send(XPAR_I2C_BASEADDR, DECODER_ADDR, send_data, 2);
+	    if( send_cnt != 2 ) 
+		  {
+	      xil_printf("Error writing to address %02x\r\n", send_data[0]);
+	      }
+	    print("\r\nWriting New Reg Value.\r\n\r\nType c to continue edits, Or  q to quit. ");
+		s =uartRead();
+	} while( s != 'q' );
+  print("\r\n\r\n");
+  return;
+}
+
+/******************************** END MISC HELPER FUNCTIONS **********************************/
