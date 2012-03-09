@@ -171,8 +171,6 @@ int main (void) {
   Xuint8 i;
   Xuint8 hold = 0;
   int wait_delay = 50000000;
-  Xuint32 pos_x = 0;
-  Xuint32 pos_y = 0;
   Xuint32 maxbright, xorval = 0x01;
   Xuint32 frame = 0;
 
@@ -232,6 +230,8 @@ void gameLoop() {
     int remove_face = 500000; 
     int add_face = 500000;
     int random_number = 0;
+    Xuint32 pos_x = 0;
+    Xuint32 pos_y = 0;
 
     //initialization
 
