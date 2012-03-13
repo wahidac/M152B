@@ -22,6 +22,7 @@
 #include <xi2c_l.h>
 #include <uart.h>
 #include <xgpio.h>
+#include "xtime_l.h"
 
 #define HORIZONTAL_PIXELS 640
 #define VERTICAL_PIXELS 480
@@ -141,6 +142,9 @@ void restorePixels(int x0, int y0, int radius, unsigned int *old_pixel_values);
 void gameLoop();
 int removeRandomSmiley(int* smileyPos);
 int drawRandomSmileys(int numSmileys, int* smileyPos);
+void killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos);
+int cleanUpDeadSmileys(int* smileyPos, XTime* timeOfDeath);
+
 
 //Drawing functions
 int colorScreen(int  word_count, COLOR c);
@@ -160,6 +164,9 @@ void drawCircle(int x0, int y0, int radius, COLOR border);
 void drawArc(int x0, int y0, int radius, COLOR border, int is_upside_down);
 unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c);
 
+//Debugging functions
+void calculateGridPosition(int* GridX, int* GridY, unsigned int x, unsigned int y);
+
 //====================================================
 
 int main (void) {
@@ -171,6 +178,7 @@ int main (void) {
   Xuint8 i;
   Xuint8 hold = 0;
   int wait_delay = 50000000;
+ 
   Xuint32 maxbright, xorval = 0x01;
   Xuint32 frame = 0;
 
@@ -221,25 +229,36 @@ int main (void) {
 
 void gameLoop() {
     int smileyPos[9];
-   // time_t timeOnGrid[9]; //How long have smileys been either dead or alive?
+    XTime timeOfDeath[9];
     int i = 0;
     int user_score = 0;  //For testing to make sure as score increases, so does randomness + speed
-    int num_smileys_allowed = 9; //Max number of smileys to have out at any given moment (cap at 6 maybe)
+    int num_smileys_allowed = 4; //Max number of smileys to have out at any given moment (cap at 6 maybe)
     int num_smileys_on_screen = 0;
     int max_num_smileys = 6;
-    int remove_face = 500000; 
-    int add_face = 500000;
+    int remove_face = 100000; 
+    int add_face = 100000;
     int random_number = 0;
-    Xuint32 pos_x = 0;
+	unsigned int sampling_frequency = 2000; //How frequently should we sample for hand position?
+	unsigned int counter = 0;
+	int gridPosX = 0;
+	int gridPosY = 0; //For testing
+	Xuint32 pos_x = 0;
     Xuint32 pos_y = 0;
-
+	XTime start = 0;
+	XTime end = 0;
+	
+	
     //initialization
 
-    //initialize grid to empty
+    //initialize grid to empty and timeDeadAndOnScreen to 0 for all boxes
     for(i = 0; i < 9; i++) {
 	    smileyPos[i] = 0;	
+		timeOfDeath[i] = 0;
     }
-
+	    
+	//draw in the 3x3 grid
+    drawGrid(green);
+	
 
     //NOTE: the 100 is arbitrary. actually calculate it eventually
     //and pass it as an argument to savePixels and restorePixels!!
@@ -262,14 +281,11 @@ void gameLoop() {
     pos_x_old = pos_x;
     pos_y_old = pos_y;
 
-    //draw in the 3x3 grid
-    drawGrid(green);
-
-
     //The main loop
 	
     while(1) {
-
+	
+	    
         //will probably need to tweak setting of remove_face and add_face
         //remove_face-- everytime we hit a face, and add_face for every 5 faces maybe?
         //increase max num moles after a shit load of them have been hit
@@ -304,25 +320,110 @@ void gameLoop() {
 
 
         //check where the user's hands are on the grid and display
-	pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
-	pos_y = XGpio_DiscreteRead(&video_mung, 2);
-	xil_printf("x coordinate: %d\n", pos_x);
-	print("dbg\r\n");
-        updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
+		if(counter == sampling_frequency) {
+		    counter = 0;
+	        pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+          	pos_y = XGpio_DiscreteRead(&video_mung, 2);
+            // xil_printf("x coordinate: %d\n", pos_x);
+            // xil_printf("y coordinate: %d\n", pos_y);
+            updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
                            pos_x, pos_y, 15, magenta);
-        pos_x_old = pos_x; 
-        pos_y_old = pos_y;
+            pos_x_old = pos_x; 
+            pos_y_old = pos_y;
+			
+			//testing!!eventually use function to check both if hit and if in circle, not grid
+			
+			//NOTE: theres a bug in one of the following functions
+			calculateGridPosition(&gridPosX, &gridPosY, (unsigned int)pos_x_old, (unsigned int)pos_y_old);
+			unsigned int index = (gridPosY*3) + (gridPosX);
+		    killSmiley(smileyPos, timeOfDeath, (int)index);
+            cleanUpDeadSmileys(smileyPos,timeOfDeath);		
+		}
+		else {
+		    counter++;
+		}
+		 
    
         //check user grid position and see if he/she hit anything. 
-	//if so, mark mole dead and take note
-        //of when it died. Remove it maybe .3 seconds later or so (can decrease as the game speeds up so
+	   //if so, mark mole dead and take note
+	
+	    //call killSmileys. Need to adjust num_smileys_on_screen in
+		//the smiley cleanup routine
+		//num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);
+
+	
+        //of when it died. Remove it maybe 1 second later or so (can decrease as the game speeds up so
         //make proportional to remove_face or add_face? maybe keep an array of times to check on this?
+	
+		
 	}
+	
             
 }
 
 
 /********************************* END MAIN GAME LOOP ***************************************************/
+
+
+
+
+/******************************** BEGIN FUNCTIONS FOR DEBUGGING *****************************************/
+
+
+/* Change the value of GridX,GridY to specify the box the arguments x,y lie in.
+   GridX,GridY take values from 0,0 to 2,2 and represent the boxes in the grid
+   treating the top-left most box as box 0,0 and the bottom right box
+   as box 2,2. Set GridX and GridY to -1,-1 if x,y falls in no grid.
+*/
+
+void calculateGridPosition(int* GridX, int* GridY, unsigned int x, unsigned int y) {
+    if(x >= 0 && x < 215) { //Lies in first column
+        *GridX = 0;
+        if( y >= 0 && y < 160)
+            *GridY = 0;
+        else if( y > 160 && y < 321 )
+            *GridY = 1;
+        else if( y > 321 && y < 480 )
+            *GridY = 2;
+        return; 
+    }
+    if(x > 215 && x < 431) { //Lies in second column
+        *GridX = 1;
+        if( y >= 0 && y < 160)
+            *GridY = 0;
+        else if( y > 160 && y < 321 )
+            *GridY = 1;
+        else if( y > 321 && y < 480 )
+            *GridY = 2;
+        return;
+    }
+    if(x > 431 && x < 640) { //Lies in third column
+        *GridX = 2;
+        if( y >= 0 && y < 160)
+            *GridY = 0;
+        else if( y > 160 && y < 321 )
+            *GridY = 1;
+        else if( y > 321 && y < 480 )
+            *GridY = 2;
+        return;
+    }
+ 
+}
+
+
+
+
+/******************************* END FUNCTIONS FOR DEBUGGING **********************************/
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -507,6 +608,73 @@ void updateHandPosition(int x_current, int y_current, unsigned int* old_pixel_va
 
 
 /************************* BEGIN FUNCTIONS TO HANDLE GAMEPLAY DYNAMICS ********************************/
+
+
+/* Iterate through smileyPos array and find smileys who are
+   dead and are still displayed on the screen. Remove them
+   if MaxTimeDeadOnScreen has elapsed. Return the number
+   of Smileys that were cleared from the screen;
+*/
+
+int cleanUpDeadSmileys(int* smileyPos, XTime* timeOfDeath) {
+    int i = 0;
+	int x = 0;
+    int y = 0;
+	int numberCleared = 0;
+	XTime MaxTimeDeadOnScreen = 90000000;
+	
+	for(i = 0; i < 9; i++) {
+	    if(smileyPos[i] == -1) {
+		    //calculate how long the dead smiley has been displayed
+		    XTime current = 0;
+			XTime_GetTime(&current);
+            if(current - timeOfDeath[i] > MaxTimeDeadOnScreen) {
+			    //clear the box
+                numberCleared++;
+                smileyPos[i] = 0;
+                timeOfDeath[i] = 0;
+				
+                //physically remove the Smiley from screen	
+                x = i % 3;
+                y = i/3;
+                x = (215 * x) + 215/2; 
+                y = (160 * y) + 160/2;	
+                drawSmiley(x,y,75,0,1);				
+		    }
+		}
+	}
+	
+	return numberCleared;
+}
+
+
+/* Remove smiley at the position indicated and
+   replace it with a dead smiley. Update the timeOfDeath
+   with the time the smiley died
+ */
+void killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos) {
+	int x = 0;
+    int y = 0;
+	
+	if(deadSmileyPos < 0 || deadSmileyPos > 8 ||
+	   smileyPos[deadSmileyPos] != 1) {
+	    return; 
+	}//ignore function call if no live smiley is in the box
+	
+    XTime_GetTime(&timeOfDeath[deadSmileyPos]);
+	smileyPos[deadSmileyPos] = -1; //Mark the Smiley as dead
+	
+	x = deadSmileyPos % 3;
+    y = deadSmileyPos/3;
+    x = (215 * x) + 215/2;
+    y = (160 * y) + 160/2;
+    
+    //Remove the smiley
+    drawSmiley(x,y,75,1,1);
+    //Draw a dead one in place
+    drawSmiley(x,y,75,0,0);
+	
+}
 
 
 /* Remove a random smiley. Return 1 if a smiley
@@ -787,10 +955,7 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 		pixel_coordY_to_top_left_of_current = y_current - 1;
 		colorPixel(c,pixel_coordX_to_top_left_of_current, 
 		                           pixel_coordY_to_top_left_of_current, &pDisplay_data, &x_current, &y_current);
-	    if(!pDisplay_data){
-		    print("Going out of bounds!!"); //We went out of bounds!!
-			return;
-	    }
+	   
     } 
 
         //reset display pointer back to center of X	
@@ -805,10 +970,6 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 		pixel_coordY_to_top_left_of_current = y_current - 1;
 		colorPixel(c,pixel_coordX_to_top_left_of_current, 
 		                           pixel_coordY_to_top_left_of_current, &pDisplay_data, &x_current, &y_current);
-	    if(!*pDisplay_data){
-		    print("Going out of bounds!!"); //We went out of bounds!!
-			return;
-	    }
     } 
 	
 	x_current = x;
@@ -822,11 +983,7 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 		pixel_coordY_to_top_left_of_current = y_current + 1;
 		colorPixel(c,pixel_coordX_to_top_left_of_current, 
 		                           pixel_coordY_to_top_left_of_current, &pDisplay_data, &x_current, &y_current);
-	    if(!pDisplay_data){
-		    print("Going out of bounds!!"); //We went out of bounds!!
-			return;
-	    }
-		
+	   
     } 
 	
 	x_current = x;
@@ -840,10 +997,7 @@ unsigned int* drawX(int x, int y, int pixels_in_branch_of_x, COLOR c) {
 		pixel_coordY_to_top_left_of_current = y_current + 1;
 		colorPixel(c,pixel_coordX_to_top_left_of_current, 
 		                           pixel_coordY_to_top_left_of_current, &pDisplay_data, &x_current, &y_current);
-	     if(!pDisplay_data){
-		    print("Going out of bounds!!"); //We went out of bounds!!
-			return;
-	    }
+	  
     } 
 }
 
@@ -863,7 +1017,7 @@ void drawSmiley(int x, int y, int radius, int is_alive, int is_removing_a_smiley
 	int dist_eyes_from_center = radius/2;
 	int pixels_in_branch_of_x = 8; //How many pixels in each of the 4 branches that compose the letter "X"
 	COLOR border_color = yellow;
-        COLOR mouth_color  = magenta;
+    COLOR mouth_color  = magenta;
 	COLOR eye_color = cyan;
 
         if(is_removing_a_smiley) {
@@ -2025,7 +2179,7 @@ void colorPixel(COLOR c, int x, int y, unsigned int **pDisplay_data, int *x0, in
 	//Advance display pointer to correct position.
 	pixels_away = (y - *y0)*(1024) + (x-*x0);
 	*pDisplay_data += pixels_away;
-        **pDisplay_data = rgb_value_array[c];
+    **pDisplay_data = rgb_value_array[c];
 
         //update current position
         *y0 = y;
