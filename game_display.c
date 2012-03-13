@@ -299,8 +299,7 @@ void gameLoop() {
 			
 		    random_number = rand() % remove_face;
             if(random_number == 1) {
-                removeRandomSmiley(smileyPos);
-                num_smileys_on_screen--;
+                num_smileys_on_screen -= removeRandomSmiley(smileyPos);
             }
         }
 
@@ -311,8 +310,7 @@ void gameLoop() {
 		   that the random number generated will equal 1. */
 			random_number = rand() % add_face;
             if(random_number == 1) {
-                drawRandomSmileys(1,smileyPos); 
-                num_smileys_on_screen++;
+                num_smileys_on_screen += drawRandomSmileys(1,smileyPos); 
             }
         } 
 
@@ -337,7 +335,8 @@ void gameLoop() {
 			calculateGridPosition(&gridPosX, &gridPosY, (unsigned int)pos_x_old, (unsigned int)pos_y_old);
 			unsigned int index = (gridPosY*3) + (gridPosX);
 		    killSmiley(smileyPos, timeOfDeath, (int)index);
-                    num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);		
+            num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);	
+            xil_printf("num smileys on screen:%d\r\n",num_smileys_on_screen);			
 		}
 		else {
 		    counter++;
@@ -687,11 +686,7 @@ int removeRandomSmiley(int* smileyPos) {
     int x = 0;
     int y = 0;
     int size = 0;
-	 //  unsigned int seed = 0;  // = clock();
-	//time_t seconds;
-	//time(&seconds);
-	//unsigned int seed = (unsigned int) seconds;
-	
+
     for(i = 0; i < 9; i++) {
          if(smileyPos[i] == 1) { //occupied Box with a living Smiley
              availableBoxes[size] = i;
