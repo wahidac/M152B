@@ -337,7 +337,7 @@ void gameLoop() {
 			calculateGridPosition(&gridPosX, &gridPosY, (unsigned int)pos_x_old, (unsigned int)pos_y_old);
 			unsigned int index = (gridPosY*3) + (gridPosX);
 		    killSmiley(smileyPos, timeOfDeath, (int)index);
-            cleanUpDeadSmileys(smileyPos,timeOfDeath);		
+                    num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);		
 		}
 		else {
 		    counter++;
