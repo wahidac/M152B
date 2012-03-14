@@ -22,6 +22,7 @@
 #include <xi2c_l.h>
 #include <uart.h>
 #include <xgpio.h>
+#include <stdio.h>
 #include "xtime_l.h"
 
 #define HORIZONTAL_PIXELS 640
@@ -140,15 +141,18 @@ void restorePixels(int x0, int y0, int radius, unsigned int *old_pixel_values);
 
 //Gameplay functions
 void gameLoop();
-int removeRandomSmiley(int* smileyPos);
-int drawRandomSmileys(int numSmileys, int* smileyPos);
-void killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos);
+int removeTimeoutSmiley(int* smileyPos, XTime* time, int time_allowed);
+int drawRandomSmileys(int numSmileys, int* smileyPos, XTime* timeOfSpawn);
+int checkSmiley (int x, int y);
+int killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos);
 int cleanUpDeadSmileys(int* smileyPos, XTime* timeOfDeath);
+void endGame(int score);
 
 
 //Drawing functions
 int colorScreen(int  word_count, COLOR c);
-int drawScore( int s );
+int drawScore( int s, COLOR COL_USED, int SCORE_LOC, int SCORE_Y, int SCALE );
+int drawMisses ( int s, COLOR COL_USED);
 void drawSmiley(int x0, int y0, int radius, int is_alive, int is_removing_a_smiley);
 void drawGrid(COLOR c);
 int drawDigit(int x, int y, char digit, int scale_factor, COLOR c);
@@ -230,13 +234,17 @@ int main (void) {
 void gameLoop() {
     int smileyPos[9];
     XTime timeOfDeath[9];
+	XTime timeOfSpawn[9];
     int i = 0;
     int user_score = 0;  //For testing to make sure as score increases, so does randomness + speed
-    int num_smileys_allowed = 4; //Max number of smileys to have out at any given moment (cap at 6 maybe)
+	int user_miss = 0;  //Starting Misses
+	int smileyRemoved = 0; // Variable for checking if a smiley was removed by game (didnt die)
     int num_smileys_on_screen = 0;
-    int max_num_smileys = 6;
-    int remove_face = 100000; 
-    int add_face = 100000;
+	
+    int time_allowed = 600000000;   // Time To Live for Smileys, Decreases with Score
+    int add_face = 100000;          // Frequency of Spawn, Increases with Score
+	int num_smileys_allowed = 4;    // Number of Smileys at one time, Increases with Score
+	
     int random_number = 0;
 	unsigned int sampling_frequency = 2000; //How frequently should we sample for hand position?
 	unsigned int counter = 0;
@@ -246,6 +254,7 @@ void gameLoop() {
     Xuint32 pos_y = 0;
 	XTime start = 0;
 	XTime end = 0;
+	int num_removed = 0;
 	
 	
     //initialization
@@ -254,10 +263,13 @@ void gameLoop() {
     for(i = 0; i < 9; i++) {
 	    smileyPos[i] = 0;	
 		timeOfDeath[i] = 0;
+		timeOfSpawn[i] = -1;
     }
 	    
 	//draw in the 3x3 grid
     drawGrid(green);
+	drawScore( user_score, white, 600, 10, 1 );
+	drawMisses ( user_miss, magenta );
 	
 
     //NOTE: the 100 is arbitrary. actually calculate it eventually
@@ -285,21 +297,13 @@ void gameLoop() {
 	
     while(1) {
 	
-	    
-        //will probably need to tweak setting of remove_face and add_face
-        //remove_face-- everytime we hit a face, and add_face for every 5 faces maybe?
-        //increase max num moles after a shit load of them have been hit
-      
-
+		/* Remove Smilys based on their time to live */
         if(num_smileys_on_screen > 0) {
-           /* Generate discrete random number from range 1 to remove_face.
-		   Only if random number is 1 should you remove a random smiley face.
-		   The higher remove_face is in value, the smaller the possibility
-		   that the random number generated will equal 1. */
-			
-		    random_number = rand() % remove_face;
-            if(random_number == 1) {
-                num_smileys_on_screen -= removeRandomSmiley(smileyPos);
+			if ( (num_removed = removeTimeoutSmiley(smileyPos, timeOfSpawn, time_allowed)) ) {
+				drawMisses ( user_miss, black );       // Clear Misses
+				user_miss = user_miss+num_removed;     // Update Misses
+				drawMisses ( user_miss, magenta );     // Draw Misses
+				num_smileys_on_screen = num_smileys_on_screen-num_removed;	
             }
         }
 
@@ -310,7 +314,7 @@ void gameLoop() {
 		   that the random number generated will equal 1. */
 			random_number = rand() % add_face;
             if(random_number == 1) {
-                num_smileys_on_screen += drawRandomSmileys(1,smileyPos); 
+                num_smileys_on_screen += drawRandomSmileys(1, smileyPos, timeOfSpawn); 
             }
         } 
 
@@ -331,17 +335,54 @@ void gameLoop() {
 			
 			//testing!!eventually use function to check both if hit and if in circle, not grid
 			
-			//NOTE: theres a bug in one of the following functions
-			calculateGridPosition(&gridPosX, &gridPosY, (unsigned int)pos_x_old, (unsigned int)pos_y_old);
-			unsigned int index = (gridPosY*3) + (gridPosX);
-		    killSmiley(smileyPos, timeOfDeath, (int)index);
+			//NOTE: theres a bug in one of the following functions??
+			int index = checkSmiley((int) pos_x, (int) pos_y);
+			if (index != -1)
+				if ( killSmiley(smileyPos, timeOfDeath, (int)index) ) {
+					drawScore(user_score, black, 600, 10, 1);
+					drawScore(++user_score, white, 600, 10, 1);
+				}
+				
             num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);	
             xil_printf("num smileys on screen:%d\r\n",num_smileys_on_screen);			
 		}
 		else {
 		    counter++;
 		}
-		 
+		
+		// Simple Difficulty Increasing Switch
+		switch (user_score) {
+		case 20:
+			time_allowed = 250000000;
+			add_face = 60000;
+			num_smileys_allowed = 4;
+			break;
+		case 40:
+			time_allowed = 100000000;
+			add_face = 45000;
+			num_smileys_allowed = 4;
+			break;
+		case 60:
+			time_allowed = 80000000;
+			add_face = 40000;
+			num_smileys_allowed = 5;
+			break;
+		case 80:
+			time_allowed = 75000000;
+			add_face = 32000;
+			num_smileys_allowed = 6;
+			break;
+		case 100:
+			time_allowed = 70000000;
+			add_face = 27000;
+			num_smileys_allowed = 7;
+			break;
+		default:
+			break;
+		} 
+		
+		if (user_miss >= 10)
+			endGame(user_score);
    
         //check user grid position and see if he/she hit anything. 
 	   //if so, mark mole dead and take note
@@ -622,6 +663,7 @@ int cleanUpDeadSmileys(int* smileyPos, XTime* timeOfDeath) {
 	int numberCleared = 0;
 	XTime MaxTimeDeadOnScreen = 90000000;
 	
+	
 	for(i = 0; i < 9; i++) {
 	    if(smileyPos[i] == -1) {
 		    //calculate how long the dead smiley has been displayed
@@ -651,13 +693,13 @@ int cleanUpDeadSmileys(int* smileyPos, XTime* timeOfDeath) {
    replace it with a dead smiley. Update the timeOfDeath
    with the time the smiley died
  */
-void killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos) {
+int killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos) {
 	int x = 0;
     int y = 0;
 	
 	if(deadSmileyPos < 0 || deadSmileyPos > 8 ||
 	   smileyPos[deadSmileyPos] != 1) {
-	    return; 
+	    return 0; 
 	}//ignore function call if no live smiley is in the box
 	
     XTime_GetTime(&timeOfDeath[deadSmileyPos]);
@@ -673,48 +715,91 @@ void killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos) {
     //Draw a dead one in place
     drawSmiley(x,y,75,0,0);
 	
+	return 1;
+	
 }
 
 
-/* Remove a random smiley. Return 1 if a smiley
-   was successfully removed, 0 else
+/* Remove Timed Out Smileys, Return the number removed
 */
 
-int removeRandomSmiley(int* smileyPos) {
+int removeTimeoutSmiley(int* smileyPos, XTime* timeOfSpawn, int time_allowed) {
     int i = 0;
-    int availableBoxes[9];
+    int j = 0;
     int x = 0;
     int y = 0;
     int size = 0;
+    int num_removed = 0;
+    int availableBoxes[9];
+	XTime current = 0;
 
+    // Find all Onscreen Smileys, Count Them
     for(i = 0; i < 9; i++) {
-         if(smileyPos[i] == 1) { //occupied Box with a living Smiley
+         if(smileyPos[i] == 1) {
              availableBoxes[size] = i;
              size++;
          }
     }
 
+    // If there arent any, return
     if(size == 0) {
         return 0; 
     }
 
-    //Randomly pick an index from 0 to size - 1. Remove the smiley there
-    int randomIndex = rand();
-	randomIndex = randomIndex % size;
-	randomIndex = availableBoxes[randomIndex];
-		
-    x = randomIndex % 3;
-    y = randomIndex/3;
-    x = (215 * x) + 215/2; //approximate the center
-    y = (160 * y) + 160/2;
+    // Check all Smiley Time, Remove them if needed
+    for (j = 0; j<size; j++)
+    {
+        XTime_GetTime(&current);
+        
+        // If its time to die
+        if (current - timeOfSpawn[availableBoxes[j]] > time_allowed) {
+            y = availableBoxes[j] / 3;
+            x = availableBoxes[j] % 3;
+            x = (215 * x) + 215/2; //approximate the center
+            y = (160 * y) + 160/2;
 
-    //Remove the smiley
-    drawSmiley(x,y,75,1,1);
-	//Mark box as empty
-    smileyPos[randomIndex] = 0;
+            // Remove the smiley
+            drawSmiley(x,y,75,1,1);
+            // Mark box as empty
+            smileyPos[availableBoxes[j]] = 0;
+            // Remove Spawn time
+            timeOfSpawn[availableBoxes[j]] = -1;
+            
+            num_removed++;
+        }
+    }
   
-    return 1;
+    return num_removed;
 
+}
+
+/* Check if a position x,y is within a smiley in a box.
+   If it is not within a smiley, return -1;
+*/
+
+int checkSmiley(int x, int y)
+{
+	int r = 75;                      // Current Radius of Smileys
+    int x1, y1, dist1, dist2, dist;  // Needed Variables
+        
+    int x0 = 0;                      // Iterators
+    int y0 = 0;
+    
+    for (x0; x0 < 3; x0++) {
+		for (y0 = 0; y0 < 3; y0++) {
+			x1 = (215 * x0) + (215/2);
+			y1 = (160 * y0) + (160/2);
+			
+			dist1 = (x-x1)*(x-x1);
+			dist2 = (y-y1)*(y-y1);
+			dist = dist1+dist2;
+			
+		if (dist <= (r*r))
+			return x0+(y0*3);
+		}
+	}
+
+	return -1;
 }
 
 /* Draws Random smileys in different grid positions that aren't
@@ -725,7 +810,7 @@ int removeRandomSmiley(int* smileyPos) {
    smiley in that box.
 */
 
-int drawRandomSmileys(int numSmileys, int *smileyPos) {
+int drawRandomSmileys(int numSmileys, int *smileyPos, XTime* timeOfSpawn) {
     int i = 0;
     int j = 0;
     int availableBoxes[9];
@@ -734,6 +819,7 @@ int drawRandomSmileys(int numSmileys, int *smileyPos) {
     int y = 0;
     int num_drawn = 0;
 	int randomIndex = 0;
+	
   //  unsigned int seed = 0;  // = clock();
 	//time_t seconds;
 	//time(&seconds);
@@ -770,10 +856,62 @@ int drawRandomSmileys(int numSmileys, int *smileyPos) {
         //Draw the smiley
         drawSmiley(x,y,75,1,0);
         smileyPos[randomIndex] = 1; //We've got a new smiley!
+		
+        XTime_GetTime(&timeOfSpawn[randomIndex]); // Save the Spawn Time
+		
         num_drawn++;
     } 
     return num_drawn;
 
+}
+
+/* Function Called to end the game */
+
+void endGame(int score) {
+
+	// Initialize Screen Variables
+	unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+    int x_current = 0;
+    int y_current = 0;
+	
+	// Color Screen Black
+	int horiz;         // Hardcoded for Scale 1, This is good
+	int vert;          // Hardcoded for Scale 1, This is good
+	for (horiz = 0; horiz < 640; horiz++) {
+		for (vert = 0; vert < 480; vert++) {
+			colorPixel(black, horiz, vert,&pDisplay_data, &x_current, &y_current);
+		}
+	}
+	
+	int gOver[12][85] = {      // Game Over Matrix
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},  
+    {0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0},  
+    {0,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0},  
+    {1,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,1,1,1,1,0,0,0,1,1,1,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,1,1,1,0},  
+    {1,1,1,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,1,1,1,0},  
+    {1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,0,1,0,0,1,0,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0},  
+    {1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,0,1,1,1,1,0,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,0,1,1,0,1,1,0,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,0,0,0},  
+    {1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0,1,1,1,1,0,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,0,1,1,0,1,1,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,1,1,1,0,0},  
+    {1,1,1,1,0,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,1,1,1,0},  
+    {0,1,1,1,1,1,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0},  
+    {0,0,1,1,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1,1,0,0,0,1,1,1}
+    };
+	
+	// Print "GAME OVER" 
+	for (horiz = 0; horiz < 85; horiz++) {
+		for (vert = 0; vert < 12; vert++) {
+			if (gOver[vert][horiz] == 1)
+				colorPixel(magenta, (362 - 85 + horiz), (vert + 212),&pDisplay_data, &x_current, &y_current);
+		}
+	}
+	
+	// Print Out Final Score
+	drawScore(score, magenta, 316, 228, 2);
+	
+	// Infinite Loop
+	while(1){
+	}
 }
 
 
@@ -830,13 +968,12 @@ void drawGrid(COLOR c) {
    This assumes that there are only 4 possible digits in a score. If not, it will only print
    the first 4 digits. Negative score appear as 0000 */
 
-int drawScore ( int s ) {
+int drawScore ( int s, COLOR COL_USED, int SCORE_LOC, int SCORE_Y, int SCALE ) {
 	
 	// Variable Switchboard
-	int SCORE_LOC = 600;     // Define Starting Position for Score
-	int SCORE_Y = 15;        // How Far Down to Draw Score
-	int SCALE = 1;           // Define Digit Scale
-	COLOR COL_USED = white;  // Define the Color Used
+	//int SCORE_LOC = 600;     // Define Starting Position for Score
+	//int SCORE_Y = 10;        // How Far Down to Draw Score
+	//int SCALE = 1;           // Define Digit Scale
 	
 	// Screen Variables
 	unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
@@ -915,14 +1052,84 @@ int drawScore ( int s ) {
 	}
 	// Draw 0 Score
 	else {
-		drawDigit(SCORE_LOC, 50, '0', SCALE, COL_USED);
-		drawDigit(SCORE_LOC + SCALE*8, 50, '0', SCALE, COL_USED);
-		drawDigit(SCORE_LOC + SCALE*16, 50, '0', SCALE, COL_USED);
-		drawDigit(SCORE_LOC + SCALE*24, 50, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*16, SCORE_Y, '0', SCALE, COL_USED);
+		drawDigit(SCORE_LOC + SCALE*24, SCORE_Y, '0', SCALE, COL_USED);
 	}
 
 }
 
+/* Draws "MISSES: %d", s and returns the number of digits from score which were written 
+   This assumes that there are only 2 possible digits in number of misses. If not, it 
+   will only print the first 2 digits. Negative score appear as 00 
+*/
+
+int drawMisses ( int s, COLOR COL_USED) {
+    
+    // Variable Switchboard
+    int SCORE_LOC = 70;     // Define Starting Position for Score
+    int SCORE_Y = 10;       // How Far Down to Draw Score
+    int SCALE = 1;          // Define Digit Scale
+    
+    // Screen Variables
+    unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+    int x_current = 0;
+    int y_current = 0;
+    
+    int each_digit = 0;        // Grab Each Digit
+    int misses[12][61] = {      // Miss Matrix
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},  
+    {1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0},  
+    {1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},  
+    {1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0},  
+    {1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0},  
+    {1,1,0,1,0,0,1,0,1,1,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0},  
+    {1,1,0,1,1,1,1,0,1,1,0,0,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0},  
+    {1,1,0,1,1,1,1,0,1,1,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0},  
+    {1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,1,1,0,0,1,1,1,0,1,1,1,0,0,0,0,0,0},  
+    {1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0},  
+    {1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0} 
+    };
+
+    // Print "MISSES: " 
+    int horiz;         // Hardcoded for Scale 1, This is good
+    int vert;          // Hardcoded for Scale 1, This is good
+    for (horiz = 0; horiz < 61; horiz++) {
+        for (vert = 0; vert < 12; vert++) {
+            if (misses[vert][horiz] == 1)
+                colorPixel(COL_USED, (SCORE_LOC - 61 + horiz), (vert + SCORE_Y),&pDisplay_data, &x_current, &y_current);
+        }
+    }
+    
+    
+    // Print 2 Digits at Requested Scale
+    if (s > 0) {
+    
+        // Digit 1 and 2
+        if ( (each_digit = (s % 10)) < s) {
+            drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, each_digit+48, SCALE, COL_USED);     // Draw First Digit
+            s = (s - each_digit)/10;                                                     // Remove Digit
+            
+            
+            drawDigit(SCORE_LOC, SCORE_Y, s+48, SCALE, COL_USED);                        // Draw Last Digit
+            return 2;
+        }
+        else {
+            drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+            drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, s+48, SCALE, COL_USED);
+            return 1;
+        }
+
+    }
+    // Draw 0 Score
+    else {
+        drawDigit(SCORE_LOC, SCORE_Y, '0', SCALE, COL_USED);
+        drawDigit(SCORE_LOC + SCALE*8, SCORE_Y, '0', SCALE, COL_USED);
+    }
+
+}
 
 /* 
    drawX is a helper function for drawSmiley. It will
