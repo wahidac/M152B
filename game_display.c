@@ -146,7 +146,7 @@ int drawRandomSmileys(int numSmileys, int* smileyPos, XTime* timeOfSpawn);
 int checkSmiley (int x, int y);
 int killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos);
 int cleanUpDeadSmileys(int* smileyPos, XTime* timeOfDeath);
-void endGame(int score);
+void endGame(int score, COLOR gameover_color);
 
 
 //Drawing functions
@@ -229,44 +229,56 @@ int main (void) {
 
 
 
-/* Main game loop */
+/* ------ Main Game ------ */
 
 void gameLoop() {
-    int smileyPos[9];
-    XTime timeOfDeath[9];
-	XTime timeOfSpawn[9];
-    int i = 0;
-    int user_score = 0;  //For testing to make sure as score increases, so does randomness + speed
-	int user_miss = 0;  //Starting Misses
-	int smileyRemoved = 0; // Variable for checking if a smiley was removed by game (didnt die)
+	
+	// Gameplay Switches
+	int MISSES_TO_END = 10;                   // Number of Misses Needed to End the Game
+    int time_allowed = 600000000;             // Time To Live for Smileys, Decreases with Score
+    int add_face = 100000;                    // Frequency of Spawn, Decreases with Score
+	int num_smileys_allowed = 4;              // Number of Smileys at one time, Increases with Score
+	unsigned int sampling_frequency = 2000;   // How frequently should we sample for hand position?
+	
+	// Colors
+	COLOR SCORE_COLOR = white;
+	COLOR MISS_COLOR = magenta;
+	COLOR GAMEOVER_COLOR = red;
+	COLOR HAND_COLOR = magenta;
+
+	// User/Game Variables
+    int smileyPos[9];                         // Smiley Array, 1 if Smiley Exists in Cell
+    XTime timeOfDeath[9];                     // Each Smiley's Time of Death
+	XTime timeOfSpawn[9];                     // Each Smiley's Birthdate
+    int user_score = 0;                       // Player's Score
+	int user_miss = 0;                        // Player's Misses
+	
+	// Book Keeping Variables
+	int i = 0;
     int num_smileys_on_screen = 0;
-	
-    int time_allowed = 600000000;   // Time To Live for Smileys, Decreases with Score
-    int add_face = 100000;          // Frequency of Spawn, Increases with Score
-	int num_smileys_allowed = 4;    // Number of Smileys at one time, Increases with Score
-	
     int random_number = 0;
-	unsigned int sampling_frequency = 2000; //How frequently should we sample for hand position?
 	unsigned int counter = 0;
+	int num_removed = 0;
 	int gridPosX = 0;
-	int gridPosY = 0; //For testing
+	int gridPosY = 0;
 	Xuint32 pos_x = 0;
     Xuint32 pos_y = 0;
 	XTime start = 0;
 	XTime end = 0;
-	int num_removed = 0;
 	
 	
-    //initialization
+	
+	
+    /* ------ Initialization ------ */
 
-    //initialize grid to empty and timeDeadAndOnScreen to 0 for all boxes
+    // Initialize Full Grid Positions
     for(i = 0; i < 9; i++) {
 	    smileyPos[i] = 0;	
 		timeOfDeath[i] = 0;
 		timeOfSpawn[i] = -1;
     }
 	    
-	//draw in the 3x3 grid
+	// Draw Full Grid
     drawGrid(green);
 	drawScore( user_score, white, 600, 10, 1 );
 	drawMisses ( user_miss, magenta );
@@ -293,7 +305,10 @@ void gameLoop() {
     pos_x_old = pos_x;
     pos_y_old = pos_y;
 
-    //The main loop
+
+
+
+    /* ------Gameplay Loop ------ */
 	
     while(1) {
 	
@@ -302,7 +317,8 @@ void gameLoop() {
 			if ( (num_removed = removeTimeoutSmiley(smileyPos, timeOfSpawn, time_allowed)) ) {
 				drawMisses ( user_miss, black );       // Clear Misses
 				user_miss = user_miss+num_removed;     // Update Misses
-				drawMisses ( user_miss, magenta );     // Draw Misses
+				drawMisses ( user_miss, MISS_COLOR );  // Draw Misses
+				
 				num_smileys_on_screen = num_smileys_on_screen-num_removed;	
             }
         }
@@ -318,34 +334,37 @@ void gameLoop() {
             }
         } 
 
-        //For testing, decrease probabilities steadly here
 
-
-        //check where the user's hands are on the grid and display
+        // Check Gameplay Functionality, Update Hands
 		if(counter == sampling_frequency) {
+			
+			// Reset Counter
 		    counter = 0;
+		    
+		    // Grab Coordinates
 	        pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
           	pos_y = XGpio_DiscreteRead(&video_mung, 2);
-            // xil_printf("x coordinate: %d\n", pos_x);
-            // xil_printf("y coordinate: %d\n", pos_y);
+
+			// Replace Old Position's Pixels
             updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
-                           pos_x, pos_y, 15, magenta);
+                               pos_x, pos_y, 15, HAND_COLOR);
+                               
+            // Update old Values
             pos_x_old = pos_x; 
             pos_y_old = pos_y;
-			
-			//testing!!eventually use function to check both if hit and if in circle, not grid
-			
-			//NOTE: theres a bug in one of the following functions??
+
+			// Kill Smiley and Update Score
 			int index = checkSmiley((int) pos_x, (int) pos_y);
 			if (index != -1)
 				if ( killSmiley(smileyPos, timeOfDeath, (int)index) ) {
 					drawScore(user_score, black, 600, 10, 1);
-					drawScore(++user_score, white, 600, 10, 1);
+					drawScore(++user_score, SCORE_COLOR, 600, 10, 1);
 				}
 				
-            num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);	
-            xil_printf("num smileys on screen:%d\r\n",num_smileys_on_screen);			
+			// Remove Dead Objects
+            num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);			
 		}
+		// Increase Polling Counter
 		else {
 		    counter++;
 		}
@@ -381,19 +400,9 @@ void gameLoop() {
 			break;
 		} 
 		
-		if (user_miss >= 10)
-			endGame(user_score);
-   
-        //check user grid position and see if he/she hit anything. 
-	   //if so, mark mole dead and take note
-	
-	    //call killSmileys. Need to adjust num_smileys_on_screen in
-		//the smiley cleanup routine
-		//num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);
-
-	
-        //of when it died. Remove it maybe 1 second later or so (can decrease as the game speeds up so
-        //make proportional to remove_face or add_face? maybe keep an array of times to check on this?
+		// End The Game /w 10 Misses
+		if (user_miss >= MISSES_TO_END)
+			endGame(user_score, GAMEOVER_COLOR);
 	
 		
 	}
@@ -720,16 +729,22 @@ int killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos) {
 }
 
 
-/* Remove Timed Out Smileys, Return the number removed
+/* 
+   Remove Timed Out Smileys, Return the number removed
 */
 
 int removeTimeoutSmiley(int* smileyPos, XTime* timeOfSpawn, int time_allowed) {
+	
+	// Iterator
     int i = 0;
-    int j = 0;
+    
+    // Smiley Centers and Numbers
     int x = 0;
     int y = 0;
     int size = 0;
     int num_removed = 0;
+    
+    // Calculation Variables
     int availableBoxes[9];
 	XTime current = 0;
 
@@ -747,23 +762,23 @@ int removeTimeoutSmiley(int* smileyPos, XTime* timeOfSpawn, int time_allowed) {
     }
 
     // Check all Smiley Time, Remove them if needed
-    for (j = 0; j<size; j++)
+    for (i = 0; i<size; i++)
     {
         XTime_GetTime(&current);
         
         // If its time to die
-        if (current - timeOfSpawn[availableBoxes[j]] > time_allowed) {
-            y = availableBoxes[j] / 3;
-            x = availableBoxes[j] % 3;
+        if (current - timeOfSpawn[availableBoxes[i]] > time_allowed) {
+            y = availableBoxes[i] / 3;
+            x = availableBoxes[i] % 3;
             x = (215 * x) + 215/2; //approximate the center
             y = (160 * y) + 160/2;
 
             // Remove the smiley
             drawSmiley(x,y,75,1,1);
             // Mark box as empty
-            smileyPos[availableBoxes[j]] = 0;
+            smileyPos[availableBoxes[i]] = 0;
             // Remove Spawn time
-            timeOfSpawn[availableBoxes[j]] = -1;
+            timeOfSpawn[availableBoxes[i]] = -1;
             
             num_removed++;
         }
@@ -781,21 +796,27 @@ int checkSmiley(int x, int y)
 {
 	int r = 75;                      // Current Radius of Smileys
     int x1, y1, dist1, dist2, dist;  // Needed Variables
-        
-    int x0 = 0;                      // Iterators
+    
+    // Iterators
+    int x0 = 0;
     int y0 = 0;
     
+    // For Each Cell
     for (x0; x0 < 3; x0++) {
 		for (y0 = 0; y0 < 3; y0++) {
+			
+			// Calculate Smiley Center
 			x1 = (215 * x0) + (215/2);
 			y1 = (160 * y0) + (160/2);
 			
+			// Calculate Distance Formula
 			dist1 = (x-x1)*(x-x1);
 			dist2 = (y-y1)*(y-y1);
 			dist = dist1+dist2;
-			
-		if (dist <= (r*r))
-			return x0+(y0*3);
+		
+			// Return if in Smiley
+			if (dist <= (r*r))
+				return x0+(y0*3);
 		}
 	}
 
@@ -865,9 +886,9 @@ int drawRandomSmileys(int numSmileys, int *smileyPos, XTime* timeOfSpawn) {
 
 }
 
-/* Function Called to end the game */
+/* Function Called to end the game, Infinite Loop after Score Printerd */
 
-void endGame(int score) {
+void endGame(int score, COLOR gameover_color) {
 
 	// Initialize Screen Variables
 	unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
@@ -902,12 +923,12 @@ void endGame(int score) {
 	for (horiz = 0; horiz < 85; horiz++) {
 		for (vert = 0; vert < 12; vert++) {
 			if (gOver[vert][horiz] == 1)
-				colorPixel(magenta, (362 - 85 + horiz), (vert + 212),&pDisplay_data, &x_current, &y_current);
+				colorPixel(gameover_color, (362 - 85 + horiz), (vert + 212),&pDisplay_data, &x_current, &y_current);
 		}
 	}
 	
 	// Print Out Final Score
-	drawScore(score, magenta, 316, 228, 2);
+	drawScore(score, gameover_color, 316, 228, 2);
 	
 	// Infinite Loop
 	while(1){
@@ -1065,7 +1086,7 @@ int drawScore ( int s, COLOR COL_USED, int SCORE_LOC, int SCORE_Y, int SCALE ) {
    will only print the first 2 digits. Negative score appear as 00 
 */
 
-int drawMisses ( int s, COLOR COL_USED) {
+int drawMisses ( int s, COLOR COL_USED ) {
     
     // Variable Switchboard
     int SCORE_LOC = 70;     // Define Starting Position for Score
@@ -1078,7 +1099,7 @@ int drawMisses ( int s, COLOR COL_USED) {
     int y_current = 0;
     
     int each_digit = 0;        // Grab Each Digit
-    int misses[12][61] = {      // Miss Matrix
+    int misses[12][61] = {     // Miss Matrix
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},  
     {1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0},  
