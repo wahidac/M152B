@@ -638,6 +638,29 @@ void restorePixels(int x0, int y0, int radius, unsigned int *old_pixel_values) {
 void updateHandPosition(int x_current, int y_current, unsigned int* old_pixel_values, 
                         int x, int y, int hand_radius, COLOR hand_color) {
 
+    //find the correct value for this!!
+    int numPixToCompare = 100;
+    unsigned int current_pixel_values[numPixToCompare];
+    volatile unsigned int rgb_value_array[16] = {0x00FFFFFF, 0x00000000, 0x00FFFF00, 0x0000FFFF, 0x0000FF00
+	  											  ,0x00FF00FF, 0x00FF0000, 0x000000FF};
+    int i = 0;
+
+    //iterate through the values of the current pixels values. If even one pixel
+    //has a different value from hand_color, that means either some event overwrote
+    //your hand pixels. In this case, these altered pixels should replace the value
+    //of the corresponding pixels in the old_pixel_values array
+
+    //Look at all of the pixels of the hand currently centered at x_current, y_current
+    savePixels(x_current, y_current, hand_radius, current_pixel_values);
+
+    for(i = 0; i < numPixToCompare; i++) {
+        if(current_pixel_values[i] != rgb_value_array[hand_color]) {
+            old_pixel_values[i] = current_pixel_values[i];
+        }
+    }
+
+
+
     //Restore the original pixel values
     restorePixels(x_current, y_current, hand_radius, old_pixel_values);
 
