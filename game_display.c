@@ -263,8 +263,11 @@ void gameLoop() {
 	int gridPosY = 0;
 	Xuint32 pos_x = 0;
     Xuint32 pos_y = 0;
+        Xuint32 hit_detected = 0;
 	XTime start = 0;
 	XTime end = 0;
+        
+       
 	
 	
 	
@@ -306,8 +309,6 @@ void gameLoop() {
     pos_y_old = pos_y;
 
 
-
-
     /* ------Gameplay Loop ------ */
 	
     while(1) {
@@ -337,13 +338,30 @@ void gameLoop() {
 
         // Check Gameplay Functionality, Update Hands
 		if(counter == sampling_frequency) {
-			
+		
+                    hit_detected = 0;	
 			// Reset Counter
 		    counter = 0;
 		    
 		    // Grab Coordinates
 	        pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
           	pos_y = XGpio_DiscreteRead(&video_mung, 2);
+
+                //We are using the 11th bit of the Y coordinate to determine whether or not
+                //a hit motion was made. If the 11th bit is set, our y coordinate will be
+                //greater than 1024 so a 
+
+                if(pos_y >= 1024) {  //A hit!
+                    pos_y -= 1024;
+                    hit_detected = 1;
+                }
+
+ 
+                //We need to let the GPIO know that we have detected a hit or not
+                //detected a hit so that it can move on with its life and do more important things
+                XGpio_DiscreteWrite(&video_mung,2,hit_detected);
+
+            
 
 			// Replace Old Position's Pixels
             updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
@@ -355,11 +373,15 @@ void gameLoop() {
 
 			// Kill Smiley and Update Score
 			int index = checkSmiley((int) pos_x, (int) pos_y);
-			if (index != -1)
+
+                        //If user is in a smiley AND a hitting gesture was detected
+			if (index != -1 && hit_detected) {
+                                //The user is inside a smiley! We need to know
 				if ( killSmiley(smileyPos, timeOfDeath, (int)index) ) {
 					drawScore(user_score, black, 600, 10, 1);
 					drawScore(++user_score, SCORE_COLOR, 600, 10, 1);
 				}
+                        }
 				
 			// Remove Dead Objects
             num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);			
