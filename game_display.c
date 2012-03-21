@@ -24,6 +24,8 @@
 #include <xgpio.h>
 #include <stdio.h>
 #include "xtime_l.h"
+#include "vid_chars.h"
+#include "screenprint.h"
 
 #define HORIZONTAL_PIXELS 640
 #define VERTICAL_PIXELS 480
@@ -31,6 +33,8 @@
 // GPIO stuff
 XGpio video_mung;
 XGpio video_mung2;
+XGpio video_mung3;
+XGpio video_mung4;
 
 #define GPO_REG_OFFSET 0x124
 //#define DECODER_ADDR 0x21  //Read: 0x43, Write: 0x42
@@ -141,10 +145,15 @@ void restorePixels(int x0, int y0, int radius, unsigned int *old_pixel_values);
 
 
 //Gameplay functions
-void gameLoop();
+void gameLoopOnePlayer();
+void gameLoopTwoPlayer();
+void startLoopOnePlayer();
+void startLoopTwoPlayer();
+int gameModeSelectionLoop();
 int removeTimeoutSmiley(int* smileyPos, XTime* time, int time_allowed);
 int drawRandomSmileys(int numSmileys, int* smileyPos, XTime* timeOfSpawn);
 int checkSmiley (int x, int y);
+int isInCircle(int x0, int y0, int x, int y, int r);
 int killSmiley(int* smileyPos, XTime* timeOfDeath, int deadSmileyPos);
 int cleanUpDeadSmileys(int* smileyPos, XTime* timeOfDeath);
 void endGame(int score, COLOR gameover_color);
@@ -205,6 +214,9 @@ int main (void) {
       print("Decoder detected! Configuring for composite video -  default.\r\n");
       XGpio_Initialize(&video_mung, XPAR_VIDEO_MUNG_DEVICE_ID);
 	  XGpio_Initialize(&video_mung2, XPAR_VIDEO_MUNG2_DEVICE_ID);
+	  XGpio_Initialize(&video_mung3, XPAR_VIDEO_MUNG3_DEVICE_ID);
+	  XGpio_Initialize(&video_mung4, XPAR_VIDEO_MUNG4_DEVICE_ID);
+
       main_memu();
       
       // begin handling brightness...
@@ -217,7 +229,15 @@ int main (void) {
     //Color the screen black
     colorScreen(309760, black);
     //Start the main game loop
-    gameLoop();
+    int num_players = gameModeSelectionLoop();
+	if(num_players == 1) {
+	   startLoopOnePlayer();
+	   gameLoopOnePlayer();
+	}
+    else if(num_players == 2) {
+	   startLoopTwoPlayer();
+	   gameLoopTwoPlayer();
+	}
 
    print("-- Exiting main() --\r\n");
    return 0;
@@ -227,13 +247,13 @@ int main (void) {
 
 
 
-/***************************** BEGIN MAIN GAME LOOP ***************************************************/
+/***************************** BEGIN MAIN GAME LOOPS ***************************************************/
 
 
 
 /* ------ Main Game ------ */
 
-void gameLoop() {
+void gameLoopOnePlayer() {
     
     // Gameplay Switches
     int MISSES_TO_END = 10;                   // Number of Misses Needed to End the Game
@@ -247,7 +267,7 @@ void gameLoop() {
     COLOR MISS_COLOR = magenta;
     COLOR GAMEOVER_COLOR = red;
     COLOR HAND_COLOR = magenta;
-    COLOR HAND_COLOR2 = green;
+    COLOR HAND_COLOR2 = magenta;
 
     // User/Game Variables
     int smileyPos[9];                         // Smiley Array, 1 if Smiley Exists in Cell
@@ -279,6 +299,9 @@ void gameLoop() {
     
     
     /* ------ Initialization ------ */
+	
+	// Notice the hardware to start the game
+	XGpio_DiscreteWrite(&video_mung,2,1);
 
     // Initialize Full Grid Positions
     for(i = 0; i < 9; i++) {
@@ -382,8 +405,8 @@ void gameLoop() {
  
                 //We need to let the GPIO know that we have detected a hit or not
                 //detected a hit so that it can move on with its life and do more important things
-                XGpio_DiscreteWrite(&video_mung,2,hit_detected);
-                XGpio_DiscreteWrite(&video_mung2,2,hit_detected2);
+                XGpio_DiscreteWrite(&video_mung,1,hit_detected);
+                XGpio_DiscreteWrite(&video_mung2,1,hit_detected2);
 
             
 
@@ -470,6 +493,898 @@ void gameLoop() {
 }
 
 
+void startLoopOnePlayer()
+{
+	
+    // Screen Variables
+    unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+    int x_current = 0;
+    int y_current = 0;
+	unsigned int sampling_frequency = 5000;
+	Xuint32 hit_detected = 0;
+    Xuint32 hit_detected2 = 0;
+	
+	// Position Variables
+    Xuint32 pos_x = 0;
+    Xuint32 pos_y = 0;
+    Xuint32 pos_x2 = 0;
+    Xuint32 pos_y2 = 0;
+    
+
+	// Start Button Center
+    int x = (215/2);
+    int y = (160) + (160/2);
+
+    //Draw the Start Smiley
+    drawSmiley(x,y,75,1,0);
+	drawSmiley(x+(430),y,75,1,0);
+
+    unsigned int old_pixel_values[100];
+    unsigned int old_pixel_values2[100];
+	unsigned int counter = 0;
+
+    //Find initial location of user's hands at the start of the game
+    Xuint32 pos_x_old = 0;
+    Xuint32 pos_y_old = 0;
+    Xuint32 pos_x2_old = 0;
+    Xuint32 pos_y2_old = 0;
+
+    pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+    pos_y = XGpio_DiscreteRead(&video_mung, 2);
+    pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung2, 1);
+    pos_y2 = XGpio_DiscreteRead(&video_mung2, 2);
+	
+    //Save the pixel values of the space you are about to overwrite
+    savePixels(pos_x, pos_y, 15, old_pixel_values);
+    savePixels(pos_x2, pos_y2, 15, old_pixel_values2);
+
+    //Draw in the placement of the new hand
+    drawCircle(pos_x,pos_y,15,magenta);
+    drawCircle(pos_x2,pos_y2,15,magenta);
+
+    pos_x_old = pos_x;
+    pos_y_old = pos_y;
+    pos_x2_old = pos_x2;
+    pos_y2_old = pos_y2;
+
+	while (1)
+	{
+        if(counter == sampling_frequency) {  
+			hit_detected = 0;
+			hit_detected2 = 0;
+			
+            // Reset Counter
+            counter = 0;
+
+            // Grab Coordinates
+            pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+            pos_y = XGpio_DiscreteRead(&video_mung, 2);
+            pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung2, 1);
+            pos_y2 = XGpio_DiscreteRead(&video_mung2, 2);
+
+            if(pos_y >= 1024) {
+				pos_y -= 1024;
+				hit_detected = 1;
+			}
+
+			if(pos_y2 >= 1024) {
+				pos_y2 -= 1024;
+				hit_detected2 = 1;
+			}
+
+			//We need to let the GPIO know that we have detected a hit or not
+			//detected a hit so that it can move on with its life and do more important things
+			XGpio_DiscreteWrite(&video_mung,1,hit_detected);
+			XGpio_DiscreteWrite(&video_mung2,1,hit_detected2);
+            
+            // Replace Old Position's Pixels
+            updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
+                               pos_x, pos_y, 15, magenta);
+            updateHandPosition(pos_x2_old, pos_y2_old, old_pixel_values2, 
+                               pos_x2, pos_y2, 15, magenta);
+                               
+            // Update old Values
+            pos_x_old = pos_x; 
+            pos_y_old = pos_y;
+            pos_x2_old = pos_x2; 
+            pos_y2_old = pos_y2;
+
+            // Kill Smiley and Update Score
+            int index = checkSmiley((int) pos_x, (int) pos_y);
+            int index2 = checkSmiley((int) pos_x2, (int) pos_y2);
+
+			// Leave Function
+			if ((index == 3 && index2 == 5) || (index == 5 && index2 == 3)) {
+				// Black out
+ 				colorScreen(309760, black);
+				return;
+			}
+                          
+        }
+        // Increase Polling Counter
+        else {
+            counter++;
+        }
+	}
+
+}
+
+
+
+void gameLoopTwoPlayer() {
+    
+    // Gameplay Switches
+    int MISSES_TO_END = 10;                   // Number of Misses Needed to End the Game
+    int time_allowed = 600000000;             // Time To Live for Smileys, Decreases with Score
+    int add_face = 100000;                    // Frequency of Spawn, Decreases with Score
+    int num_smileys_allowed = 4;              // Number of Smileys at one time, Increases with Score
+    unsigned int sampling_frequency = 2000;   // How frequently should we sample for hand position?
+    
+    // Colors
+    COLOR SCORE_COLOR = white;
+    COLOR MISS_COLOR = magenta;
+    COLOR GAMEOVER_COLOR = red;
+    COLOR P1_HAND_COLOR = magenta;
+    COLOR P1_HAND_COLOR2 = magenta;
+	COLOR P2_HAND_COLOR = green;
+    COLOR P2_HAND_COLOR2 = green;
+
+    // User/Game Variables
+    int smileyPos[9];                         // Smiley Array, 1 if Smiley Exists in Cell
+    XTime timeOfDeath[9];                     // Each Smiley's Time of Death
+    XTime timeOfSpawn[9];                     // Each Smiley's Birthdate
+    int user_score = 0;                       // Player's Score
+    int user_miss = 0;                        // Player's Misses
+    
+    // Book Keeping Variables
+    int i = 0;
+    int num_smileys_on_screen = 0;
+    int random_number = 0;
+    unsigned int counter = 0;
+    int num_removed = 0;
+    int gridPosX = 0;
+    int gridPosY = 0;
+	//Player one tracking variables
+    Xuint32 P1_pos_x = 0;
+    Xuint32 P1_pos_y = 0;
+    Xuint32 P1_pos_x2 = 0;
+    Xuint32 P1_pos_y2 = 0;
+    Xuint32 P1_hit_detected = 0;
+    Xuint32 P1_hit_detected2 = 0;
+	//Player two tracking variables
+	Xuint32 P2_pos_x = 0;
+    Xuint32 P2_pos_y = 0;
+    Xuint32 P2_pos_x2 = 0;
+    Xuint32 P2_pos_y2 = 0;
+    Xuint32 P2_hit_detected = 0;
+    Xuint32 P2_hit_detected2 = 0;
+	
+    XTime start = 0;
+    XTime end = 0;
+        
+       
+ 
+    
+    
+    
+    /* ------ Initialization ------ */
+	
+	// Notice the hardware to start the game
+	XGpio_DiscreteWrite(&video_mung,2,1);
+
+    // Initialize Full Grid Positions
+    for(i = 0; i < 9; i++) {
+        smileyPos[i] = 0;    
+        timeOfDeath[i] = 0;
+        timeOfSpawn[i] = -1;
+    }
+        
+    // Draw Full Grid
+    drawGrid(green);
+    drawScore( user_score, white, 600, 10, 1 );
+    drawMisses ( user_miss, magenta );
+    
+
+    //NOTE: the 100 is arbitrary. actually calculate it eventually
+    //and pass it as an argument to savePixels and restorePixels!!
+
+    unsigned int P1_old_pixel_values[100];
+    unsigned int P1_old_pixel_values2[100];
+	unsigned int P2_old_pixel_values[100];
+    unsigned int P2_old_pixel_values2[100];
+
+    //Find initial location of users' hands at the start of the game
+    Xuint32 P1_pos_x_old = 0;
+    Xuint32 P1_pos_y_old = 0;
+    Xuint32 P1_pos_x2_old = 0;
+    Xuint32 P1_pos_y2_old = 0;
+	
+	Xuint32 P2_pos_x_old = 0;
+    Xuint32 P2_pos_y_old = 0;
+    Xuint32 P2_pos_x2_old = 0;
+    Xuint32 P2_pos_y2_old = 0;
+	
+	//Find initial position of player 1's hands
+
+    P1_pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+    P1_pos_y = XGpio_DiscreteRead(&video_mung, 2);
+    P1_pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung2, 1);
+    P1_pos_y2 = XGpio_DiscreteRead(&video_mung2, 2);
+	
+    //Save the pixel values of the space you are about to overwrite
+    savePixels(P1_pos_x, P1_pos_y, 15, P1_old_pixel_values);
+    savePixels(P1_pos_x2, P1_pos_y2, 15, P1_old_pixel_values2);
+
+    //Draw in the placement of the new hand
+    drawCircle(P1_pos_x,P1_pos_y,15,magenta);
+    drawCircle(P1_pos_x2,P1_pos_y2,15,magenta);
+
+    P1_pos_x_old = P1_pos_x;
+    P1_pos_y_old = P1_pos_y;
+    P1_pos_x2_old = P1_pos_x2;
+    P1_pos_y2_old = P1_pos_y2;
+	
+	//Find the initial position of player 2's hands
+	P2_pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung3, 1);
+    P2_pos_y = XGpio_DiscreteRead(&video_mung3, 2);
+    P2_pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung4, 1);
+    P2_pos_y2 = XGpio_DiscreteRead(&video_mung4, 2);
+	
+    //Save the pixel values of the space you are about to overwrite
+    savePixels(P2_pos_x, P2_pos_y, 15, P2_old_pixel_values);
+    savePixels(P2_pos_x2, P2_pos_y2, 15, P2_old_pixel_values2);
+
+    //Draw in the placement of the new hand
+    drawCircle(P2_pos_x,P2_pos_y,15,green);
+    drawCircle(P2_pos_x2,P2_pos_y2,15,green);
+
+    P2_pos_x_old = P2_pos_x;
+    P2_pos_y_old = P2_pos_y;
+    P2_pos_x2_old = P2_pos_x2;
+    P2_pos_y2_old = P2_pos_y2;
+	
+	
+	
+
+
+    /* ------Gameplay Loop ------ */
+    
+	
+    while(1) {
+    
+        /* Remove Smilys based on their time to live */
+        if(num_smileys_on_screen > 0) {
+            if ( (num_removed = removeTimeoutSmiley(smileyPos, timeOfSpawn, time_allowed)) ) {
+                drawMisses ( user_miss, black );       // Clear Misses
+                user_miss = user_miss+num_removed;     // Update Misses
+                drawMisses ( user_miss, MISS_COLOR );  // Draw Misses
+                
+                num_smileys_on_screen = num_smileys_on_screen-num_removed;    
+            }
+        }
+
+        if(num_smileys_on_screen < num_smileys_allowed) {
+           /* Generate discrete random number from range 1 to add_face.
+           Only if random number is 1 should you add a random smiley face.
+           The higher add_face is in value, the smaller the possibility
+           that the random number generated will equal 1. */
+            random_number = rand() % add_face;
+            if(random_number == 1) {
+                num_smileys_on_screen += drawRandomSmileys(1, smileyPos, timeOfSpawn); 
+            }
+        } 
+
+
+        // Check Gameplay Functionality, Update Hands
+        if(counter == sampling_frequency) {
+        
+            P1_hit_detected = 0;
+            P1_hit_detected2 = 0;
+            P2_hit_detected = 0;
+            P2_hit_detected2 = 0; 			
+            // Reset Counter
+            counter = 0;
+            
+            //Grab player 1 coordinates
+            P1_pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+            P1_pos_y = XGpio_DiscreteRead(&video_mung, 2);
+            P1_pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung2, 1);
+            P1_pos_y2 = XGpio_DiscreteRead(&video_mung2, 2);
+			
+			//Grab player 2 coordinates
+			P2_pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung3, 1);
+            P2_pos_y = XGpio_DiscreteRead(&video_mung3, 2);
+            P2_pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung4, 1);
+            P2_pos_y2 = XGpio_DiscreteRead(&video_mung4, 2);
+
+            if(P1_pos_y >= 1024) {
+				P1_pos_y -= 1024;
+				P1_hit_detected = 1;
+			}
+
+			if(P1_pos_y2 >= 1024) {
+				P1_pos_y2 -= 1024;
+				P1_hit_detected2 = 1;
+			}
+			
+			if(P2_pos_y >= 1024) {
+				P2_pos_y -= 1024;
+				P2_hit_detected = 1;
+			}
+
+			if(P2_pos_y2 >= 1024) {
+				P2_pos_y2 -= 1024;
+				P2_hit_detected2 = 1;
+			}
+			
+ 
+            //We need to let the GPIO know that we have detected a hit or not
+			//detected a hit so that it can move on with its life and do more important things
+			XGpio_DiscreteWrite(&video_mung,1,P1_hit_detected);
+			XGpio_DiscreteWrite(&video_mung2,1,P1_hit_detected2);
+			XGpio_DiscreteWrite(&video_mung3,1,P2_hit_detected);
+			XGpio_DiscreteWrite(&video_mung4,1,P2_hit_detected2);
+            
+            // Replace Old Position's Pixels
+            updateHandPosition(P1_pos_x_old, P1_pos_y_old, P1_old_pixel_values, 
+                               P1_pos_x, P1_pos_y, 15, magenta);
+            updateHandPosition(P1_pos_x2_old, P1_pos_y2_old, P1_old_pixel_values2, 
+                              P1_pos_x2, P1_pos_y2, 15, magenta);		
+		    updateHandPosition(P2_pos_x_old, P2_pos_y_old, P2_old_pixel_values, 
+                               P2_pos_x, P2_pos_y, 15, green);
+            updateHandPosition(P2_pos_x2_old, P2_pos_y2_old, P2_old_pixel_values2, 
+                               P2_pos_x2, P2_pos_y2, 15, green);
+           	
+            // Update old Values
+            P1_pos_x_old = P1_pos_x; 
+            P1_pos_y_old = P1_pos_y;
+            P1_pos_x2_old = P1_pos_x2; 
+            P1_pos_y2_old = P1_pos_y2;
+			
+			P2_pos_x_old = P2_pos_x; 
+            P2_pos_y_old = P2_pos_y;
+            P2_pos_x2_old = P2_pos_x2; 
+            P2_pos_y2_old = P2_pos_y2;
+
+            
+            // Kill Smiley and Update Score for Player 1
+            int index = checkSmiley((int) P1_pos_x, (int) P1_pos_y);
+            int index2 = checkSmiley((int) P1_pos_x2, (int) P1_pos_y2);
+
+            //If user is in a smiley AND a hitting gesture was detected
+            if (index != -1 && P1_hit_detected) {
+                //The user is inside a smiley! We need to know
+                if ( killSmiley(smileyPos, timeOfDeath, (int)index) ) {
+                    drawScore(user_score, black, 600, 10, 1);
+                    drawScore(++user_score, SCORE_COLOR, 600, 10, 1);
+                }
+            }
+
+            if (index2 != -1 && P1_hit_detected2) {
+                //The user is inside a smiley! We need to know
+                if ( killSmiley(smileyPos, timeOfDeath, (int)index2) ) {
+                    drawScore(user_score, black, 600, 10, 1);
+                    drawScore(++user_score, SCORE_COLOR, 600, 10, 1);
+                }
+            }
+			
+			
+			// Kill Smiley and Update Score for Player 2
+            index = checkSmiley((int) P2_pos_x, (int) P2_pos_y);
+            index2 = checkSmiley((int) P2_pos_x2, (int) P2_pos_y2);
+
+           //If user is in a smiley AND a hitting gesture was detected
+            if (index != -1 && P2_hit_detected) {
+                //The user is inside a smiley! We need to know
+                if ( killSmiley(smileyPos, timeOfDeath, (int)index) ) {
+                    drawScore(user_score, black, 600, 10, 1);
+                    drawScore(++user_score, SCORE_COLOR, 600, 10, 1);
+                }
+            }
+
+            if (index2 != -1 && P2_hit_detected2) {
+                //The user is inside a smiley! We need to know
+                if ( killSmiley(smileyPos, timeOfDeath, (int)index2) ) {
+                    drawScore(user_score, black, 600, 10, 1);
+                    drawScore(++user_score, SCORE_COLOR, 600, 10, 1);
+                }
+            }
+			
+            // Remove Dead Objects
+            num_smileys_on_screen -= cleanUpDeadSmileys(smileyPos,timeOfDeath);            
+        }
+        // Increase Polling Counter
+        else {
+            counter++;
+        }
+        
+        // Simple Difficulty Increasing Switch
+        switch (user_score) {
+        case 20:
+            time_allowed = 250000000;
+            add_face = 60000;
+            num_smileys_allowed = 4;
+            break;
+        case 40:
+            time_allowed = 100000000;
+            add_face = 45000;
+            num_smileys_allowed = 4;
+            break;
+        case 60:
+            time_allowed = 80000000;
+            add_face = 40000;
+            num_smileys_allowed = 5;
+            break;
+        case 80:
+            time_allowed = 75000000;
+            add_face = 32000;
+            num_smileys_allowed = 6;
+            break;
+        case 100:
+            time_allowed = 70000000;
+            add_face = 27000;
+            num_smileys_allowed = 7;
+            break;
+        default:
+            break;
+        } 
+        
+        // End The Game /w 10 Misses
+        if (user_miss >= MISSES_TO_END)
+            endGame(user_score, GAMEOVER_COLOR);
+    
+        
+    }
+    
+            
+}
+
+void startLoopTwoPlayer()
+{
+	
+    // Screen Variables
+    unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+    int x_current = 0;
+    int y_current = 0;
+	int playerOneCalibrated = 0;
+	int playerTwoCalibrated = 0;
+	int blackedOutPlayerOnesHands = 0;
+	int blackedOutPlayerTwosHands = 0;
+	unsigned int sampling_frequency = 2000;
+	Xuint32 P1_hit_detected = 0;
+    Xuint32 P1_hit_detected2 = 0;
+	Xuint32 P2_hit_detected = 0;
+    Xuint32 P2_hit_detected2 = 0;
+	
+	// Position Variables
+    Xuint32 P1_pos_x = 0;
+    Xuint32 P1_pos_y = 0;
+    Xuint32 P1_pos_x2 = 0;
+    Xuint32 P1_pos_y2 = 0;
+	
+	Xuint32 P2_pos_x = 0;
+    Xuint32 P2_pos_y = 0;
+    Xuint32 P2_pos_x2 = 0;
+    Xuint32 P2_pos_y2 = 0;
+    
+
+	// Start Button Center
+    int x = 55;
+    int y = (160) + (160/2);
+
+    //Draw the Start Smileys for Player 1
+    drawSmiley(x,y,50,1,0);
+	x += (100 + 50);
+	drawSmiley(x,y,50,1,0);
+	x += (100 + 100);
+	
+	//Draw the Start Smileys for Player 2
+	drawSmiley(x,y,50,1,0);
+	x += (100 + 50);
+	drawSmiley(x,y,50,1,0);
+	
+    unsigned int P1_old_pixel_values[100];
+    unsigned int P1_old_pixel_values2[100];
+	unsigned int P2_old_pixel_values[100];
+    unsigned int P2_old_pixel_values2[100];
+	unsigned int counter = 0;
+
+    //Find initial location of users' hands at the start of the game
+    Xuint32 P1_pos_x_old = 0;
+    Xuint32 P1_pos_y_old = 0;
+    Xuint32 P1_pos_x2_old = 0;
+    Xuint32 P1_pos_y2_old = 0;
+	
+	Xuint32 P2_pos_x_old = 0;
+    Xuint32 P2_pos_y_old = 0;
+    Xuint32 P2_pos_x2_old = 0;
+    Xuint32 P2_pos_y2_old = 0;
+	
+	//Find initial position of player 1's hands
+
+    P1_pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+    P1_pos_y = XGpio_DiscreteRead(&video_mung, 2);
+    P1_pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung2, 1);
+    P1_pos_y2 = XGpio_DiscreteRead(&video_mung2, 2);
+	
+    //Save the pixel values of the space you are about to overwrite
+    savePixels(P1_pos_x, P1_pos_y, 15, P1_old_pixel_values);
+    savePixels(P1_pos_x2, P1_pos_y2, 15, P1_old_pixel_values2);
+
+    //Draw in the placement of the new hand
+    drawCircle(P1_pos_x,P1_pos_y,15,magenta);
+    drawCircle(P1_pos_x2,P1_pos_y2,15,magenta);
+
+    P1_pos_x_old = P1_pos_x;
+    P1_pos_y_old = P1_pos_y;
+    P1_pos_x2_old = P1_pos_x2;
+    P1_pos_y2_old = P1_pos_y2;
+	
+	//Find the initial position of player 2's hands
+	P2_pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung3, 1);
+    P2_pos_y = XGpio_DiscreteRead(&video_mung3, 2);
+    P2_pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung4, 1);
+    P2_pos_y2 = XGpio_DiscreteRead(&video_mung4, 2);
+	
+    //Save the pixel values of the space you are about to overwrite
+    savePixels(P2_pos_x, P2_pos_y, 15, P2_old_pixel_values);
+    savePixels(P2_pos_x2, P2_pos_y2, 15, P2_old_pixel_values2);
+
+    //Draw in the placement of the new hand
+    drawCircle(P2_pos_x,P2_pos_y,15,green);
+    drawCircle(P2_pos_x2,P2_pos_y2,15,green);
+
+    P2_pos_x_old = P2_pos_x;
+    P2_pos_y_old = P2_pos_y;
+    P2_pos_x2_old = P2_pos_x2;
+    P2_pos_y2_old = P2_pos_y2;
+	
+
+	while (1)
+	{
+        if(counter == sampling_frequency) {  
+			P1_hit_detected = 0;
+			P1_hit_detected2 = 0;
+			P2_hit_detected = 0;
+			P2_hit_detected2 = 0;
+			
+            // Reset Counter
+            counter = 0;
+
+           // Grab Coordinates
+			
+			//Grab player 1 coordinates
+            P1_pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+            P1_pos_y = XGpio_DiscreteRead(&video_mung, 2);
+            P1_pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung2, 1);
+            P1_pos_y2 = XGpio_DiscreteRead(&video_mung2, 2);
+			
+			//Grab player 2 coordinates
+			P2_pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung3, 1);
+            P2_pos_y = XGpio_DiscreteRead(&video_mung3, 2);
+            P2_pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung4, 1);
+            P2_pos_y2 = XGpio_DiscreteRead(&video_mung4, 2);
+
+            if(P1_pos_y >= 1024) {
+				P1_pos_y -= 1024;
+				P1_hit_detected = 1;
+			}
+
+			if(P1_pos_y2 >= 1024) {
+				P1_pos_y2 -= 1024;
+				P1_hit_detected2 = 1;
+			}
+			
+			if(P2_pos_y >= 1024) {
+				P2_pos_y -= 1024;
+				P2_hit_detected = 1;
+			}
+
+			if(P2_pos_y2 >= 1024) {
+				P2_pos_y2 -= 1024;
+				P2_hit_detected2 = 1;
+			}
+			
+		
+			//We need to let the GPIO know that we have detected a hit or not
+			//detected a hit so that it can move on with its life and do more important things
+			XGpio_DiscreteWrite(&video_mung,1,P1_hit_detected);
+			XGpio_DiscreteWrite(&video_mung2,1,P1_hit_detected2);
+			XGpio_DiscreteWrite(&video_mung3,1,P2_hit_detected);
+			XGpio_DiscreteWrite(&video_mung4,1,P2_hit_detected2);
+            
+            // Replace Old Position's Pixels
+			if(!playerOneCalibrated) {
+                updateHandPosition(P1_pos_x_old, P1_pos_y_old, P1_old_pixel_values, 
+                               P1_pos_x, P1_pos_y, 15, magenta);
+                updateHandPosition(P1_pos_x2_old, P1_pos_y2_old, P1_old_pixel_values2, 
+                               P1_pos_x2, P1_pos_y2, 15, magenta);
+			}
+
+            if(!playerTwoCalibrated) {			
+		        updateHandPosition(P2_pos_x_old, P2_pos_y_old, P2_old_pixel_values, 
+                               P2_pos_x, P2_pos_y, 15, green);
+                updateHandPosition(P2_pos_x2_old, P2_pos_y2_old, P2_old_pixel_values2, 
+                               P2_pos_x2, P2_pos_y2, 15, green);
+            }
+			
+            // Update old Values
+            P1_pos_x_old = P1_pos_x; 
+            P1_pos_y_old = P1_pos_y;
+            P1_pos_x2_old = P1_pos_x2; 
+            P1_pos_y2_old = P1_pos_y2;
+			
+			P2_pos_x_old = P2_pos_x; 
+            P2_pos_y_old = P2_pos_y;
+            P2_pos_x2_old = P2_pos_x2; 
+            P2_pos_y2_old = P2_pos_y2;
+			
+			//Has Player one calibrated?
+			 x = 55;
+             y = (160) + (160/2);
+			if(!playerOneCalibrated) {
+			   
+		    	playerOneCalibrated = ( (isInCircle(x, y, (int)P1_pos_x, (int)P1_pos_y, 50) &&
+			                           isInCircle(x + 100 + 50, y, (int)P1_pos_x2, (int)P1_pos_y2,50)) ||
+									    (isInCircle(x, y, (int)P1_pos_x2, (int)P1_pos_y2, 50) &&
+			                           isInCircle(x + 100 + 50, y, (int)P1_pos_x, (int)P1_pos_y,50)) );
+			}
+			x += 100 + 50 + 100 + 100;			
+			
+            if(!playerTwoCalibrated) {			
+		    	playerTwoCalibrated = ( (isInCircle(x, y, (int)P2_pos_x, (int)P2_pos_y, 50) &&
+			                           isInCircle(x + 100 + 50, y, (int)P2_pos_x2, (int)P2_pos_y2,50)) ||
+									    (isInCircle(x, y, (int)P2_pos_x2, (int)P2_pos_y2, 50) &&
+			                           isInCircle(x + 100 + 50, y, (int)P2_pos_x, (int)P2_pos_y,50)) ); 
+			}
+
+
+            if(playerOneCalibrated && !blackedOutPlayerOnesHands) {
+			    //black out playerOne's hands
+				 drawCircle(P1_pos_x,P1_pos_y,15,black);
+                 drawCircle(P1_pos_x2,P1_pos_y2,15,black);
+                 blackedOutPlayerOnesHands = 1;				 
+		    }
+			
+			if(playerTwoCalibrated && !blackedOutPlayerTwosHands) {
+			     //Draw in the placement of the new hand
+                 drawCircle(P2_pos_x,P2_pos_y,15,black);
+                 drawCircle(P2_pos_x2,P2_pos_y2,15,black);
+				 blackedOutPlayerTwosHands = 1;
+			    //black out playerTwo's hands
+			}
+			
+			if(playerOneCalibrated && playerTwoCalibrated) {
+			    //Black out
+				colorScreen(309760, black);
+			    return; //Calibration complete
+		    }
+                         
+        }
+        // Increase Polling Counter
+        else {
+            counter++;
+        }
+	}
+
+}
+
+
+int gameModeSelectionLoop()
+{
+	
+    // Screen Variables
+    unsigned int* pDisplay_data   = (unsigned int  *)0x07E00000;
+    int x_current = 0;
+    int y_current = 0;
+	unsigned int sampling_frequency = 5000;
+	Xuint32 hit_detected = 0;
+    Xuint32 hit_detected2 = 0;
+	int num_players = 0;
+	
+	// Position Variables
+    Xuint32 pos_x = 0;
+    Xuint32 pos_y = 0;
+    Xuint32 pos_x2 = 0;
+    Xuint32 pos_y2 = 0;
+	
+	volatile unsigned int rgb_value_array[16] = {0x00FFFFFF, 0x00000000, 0x00FFFF00, 0x0000FFFF, 0x0000FF00
+                                                    ,0x00FF00FF, 0x00FF0000, 0x000000FF};
+    
+    char whaca[12][58] = {      // Whac Matrix
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},  
+    {1,1,1,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0},  
+    {1,1,1,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0},  
+    {0,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0},  
+    {0,1,1,0,1,1,1,1,1,0,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0},  
+    {0,1,1,0,1,1,0,1,1,0,1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0},  
+    {0,1,1,1,1,1,0,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0},  
+    {0,1,1,1,1,1,0,1,1,1,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,1,1,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,0},  
+    {0,0,1,1,1,1,0,1,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1},  
+    {0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1},  
+    {0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1}
+    };
+	
+	char smiley[12][53] = {     // Smiley Matrix
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},  
+    {0,1,1,1,1,1,0,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,1,1,1},  
+    {1,1,1,1,1,1,1,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1,1,0,0,0,1,1,1,0},  
+    {1,1,1,0,0,1,1,0,0,1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0,0},  
+    {1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0,0},  
+    {0,1,1,1,1,1,0,0,0,1,1,0,1,0,0,1,0,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0},  
+    {0,0,1,1,1,1,1,0,0,1,1,0,1,1,1,1,0,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0},  
+    {0,0,0,0,1,1,1,0,0,1,1,0,1,1,1,1,0,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0},  
+    {1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0},  
+    {1,1,1,1,1,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0},  
+    {0,1,1,1,1,1,0,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0}
+    };
+	
+	//Player
+	 char player[12][58] = {      // Whac Matrix
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},  
+    {1,1,1,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0},  
+    {1,1,1,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0},  
+    {0,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0},  
+    {0,1,1,0,1,1,1,1,1,0,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0},  
+    {0,1,1,0,1,1,0,1,1,0,1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0},  
+    {0,1,1,1,1,1,0,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,0},  
+    {0,1,1,1,1,1,0,1,1,1,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,0,0,1,1,0,0,1,1,1,1,0,0,1,1,1,1,1,1,1,0},  
+    {0,0,1,1,1,1,0,1,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1},  
+    {0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1},  
+    {0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,0,0,0,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,1}
+    };
+	
+	
+	// Print "Whac-A" at double scale
+    int horiz;         // Hardcoded for Scale 2
+    int vert;          // Hardcoded for Scale 2
+    for (horiz = 0; horiz < 58; horiz++) {
+        for (vert = 0; vert < 12; vert++) {
+            if (whaca[vert][horiz] == 1) {
+                colorPixel(green, (262 + horiz*2), (vert*2 + 133),&pDisplay_data, &x_current, &y_current);
+				colorPixel(green, (262 + horiz*2 + 1), (vert*2 + 133),&pDisplay_data, &x_current, &y_current);
+				colorPixel(green, (262 + horiz*2), (vert*2 + 133 + 1),&pDisplay_data, &x_current, &y_current);
+				colorPixel(green, (262 + horiz*2 + 1), (vert*2 + 133 + 1),&pDisplay_data, &x_current, &y_current);
+			}
+        }
+    } 
+	// Print "Smiley" at double scale
+	for (horiz = 0; horiz < 53; horiz++) {
+        for (vert = 0; vert < 12; vert++) {
+            if (smiley[vert][horiz] == 1) {
+                colorPixel(green, (268 + horiz*2), (vert*2 + 160),&pDisplay_data, &x_current, &y_current);
+				colorPixel(green, (268 + horiz*2 + 1), (vert*2 + 160),&pDisplay_data, &x_current, &y_current);
+				colorPixel(green, (268 + horiz*2), (vert*2 + 160 + 1),&pDisplay_data, &x_current, &y_current);
+				colorPixel(green, (268 + horiz*2 + 1), (vert*2 + 160 + 1),&pDisplay_data, &x_current, &y_current);
+			}
+        }
+    }
+
+	// Start Button Center
+    int x = (215/2);
+    int y = (160) + (160/2);
+
+    
+    drawCircle(x,y,75,green);
+	drawCircle(x+(430),y,75,magenta);
+	
+	//Print '1 PLAYER' inside the first circle
+	 printChar('1', x-50, y, rgb_value_array[cyan]);
+     printChar('P', x-30, y, rgb_value_array[cyan]);
+	 printChar('L', x-15, y, rgb_value_array[cyan]);
+	 printChar('A', x, y, rgb_value_array[cyan]);
+	 printChar('Y', x+15, y, rgb_value_array[cyan]);
+	 printChar('E', x+30, y, rgb_value_array[cyan]);
+	 printChar('R', x+45, y, rgb_value_array[cyan]);	//Print '2 PLAYER' inside the second circle
+	 printChar('2', x+(430)-50, y, rgb_value_array[cyan]);
+     printChar('P', x+(430)-30, y, rgb_value_array[cyan]);
+	 printChar('L', x+(430)-15, y, rgb_value_array[cyan]);
+	 printChar('A', x+(430), y, rgb_value_array[cyan]);
+	 printChar('Y', x+(430)+15, y, rgb_value_array[cyan]);
+	 printChar('E', x+(430)+30, y, rgb_value_array[cyan]);
+	 printChar('R', x+(430)+45, y, rgb_value_array[cyan]);
+	
+
+    unsigned int old_pixel_values[100];
+    unsigned int old_pixel_values2[100];
+	unsigned int counter = 0;
+
+    //Find initial location of user's hands at the start of the game
+    Xuint32 pos_x_old = 0;
+    Xuint32 pos_y_old = 0;
+    Xuint32 pos_x2_old = 0;
+    Xuint32 pos_y2_old = 0;
+
+    pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+    pos_y = XGpio_DiscreteRead(&video_mung, 2);
+    pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung2, 1);
+    pos_y2 = XGpio_DiscreteRead(&video_mung2, 2);
+	
+    //Save the pixel values of the space you are about to overwrite
+    savePixels(pos_x, pos_y, 15, old_pixel_values);
+    savePixels(pos_x2, pos_y2, 15, old_pixel_values2);
+
+    //Draw in the placement of the new hand
+    drawCircle(pos_x,pos_y,15,magenta);
+    drawCircle(pos_x2,pos_y2,15,magenta);
+
+    pos_x_old = pos_x;
+    pos_y_old = pos_y;
+    pos_x2_old = pos_x2;
+    pos_y2_old = pos_y2;
+
+	while (1)
+	{
+        if(counter == sampling_frequency) {  
+			hit_detected = 0;
+			hit_detected2 = 0;
+			
+            // Reset Counter
+            counter = 0;
+
+            // Grab Coordinates
+            pos_x = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung, 1);
+            pos_y = XGpio_DiscreteRead(&video_mung, 2);
+            pos_x2 = HORIZONTAL_PIXELS-XGpio_DiscreteRead(&video_mung2, 1);
+            pos_y2 = XGpio_DiscreteRead(&video_mung2, 2);
+
+            if(pos_y >= 1024) {
+				pos_y -= 1024;
+				hit_detected = 1;
+			}
+
+			if(pos_y2 >= 1024) {
+				pos_y2 -= 1024;
+				hit_detected2 = 1;
+			}
+
+			//We need to let the GPIO know that we have detected a hit or not
+			//detected a hit so that it can move on with its life and do more important things
+			XGpio_DiscreteWrite(&video_mung,1,hit_detected);
+			XGpio_DiscreteWrite(&video_mung2,1,hit_detected2);
+            
+            // Replace Old Position's Pixels
+            updateHandPosition(pos_x_old, pos_y_old, old_pixel_values, 
+                               pos_x, pos_y, 15, magenta);
+            updateHandPosition(pos_x2_old, pos_y2_old, old_pixel_values2, 
+                               pos_x2, pos_y2, 15, magenta);
+                               
+            // Update old Values
+            pos_x_old = pos_x; 
+            pos_y_old = pos_y;
+            pos_x2_old = pos_x2; 
+            pos_y2_old = pos_y2;
+
+            // Kill Smiley and Update Score
+            int index = checkSmiley((int) pos_x, (int) pos_y);
+            int index2 = checkSmiley((int) pos_x2, (int) pos_y2);
+
+			// If both hands are in the same circle
+			if (index == 3 && index2 == 3)
+			    num_players = 1;
+			else if(index == 5 && index2 == 5)
+			    num_players = 2;
+			
+			//The user picked a game mode
+			if(num_players > 0) {
+				// Black out everything
+				colorScreen(309760, black);
+				return num_players;
+			}
+                          
+        }
+        // Increase Polling Counter
+        else {
+            counter++;
+        }
+	}
+
+}
+
+
 /********************************* END MAIN GAME LOOP ***************************************************/
 
 
@@ -517,6 +1432,7 @@ void calculateGridPosition(int* GridX, int* GridY, unsigned int x, unsigned int 
     }
  
 }
+
 
 
 
@@ -905,6 +1821,26 @@ int checkSmiley(int x, int y)
     return -1;
 }
 
+/* Used for calibration. Is x,y inside circle of
+   radius r centered at x0,y0? 
+*/
+
+int isInCircle(int x0, int y0, int x, int y, int r) {
+    int dist1 = 0;
+	int dist2 = 0;
+    int dist = 0;
+    // Calculate Distance Formula
+    dist1 = (x-x0)*(x-x0);
+    dist2 = (y-y0)*(y-y0);
+    dist = dist1 + dist2;
+	
+	if(dist <= (r*r))
+	    return 1;
+    else
+	    return 0;
+}
+
+
 /* Draws Random smileys in different grid positions that aren't
    currently occupied. smileyPos represents positions of Smileys.
    A value of 0 for a given index means that box is empty, a value
@@ -986,7 +1922,7 @@ void endGame(int score, COLOR gameover_color) {
         }
     }
     
-    int gOver[12][85] = {      // Game Over Matrix
+    char gOver[12][85] = {      // Game Over Matrix
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},  
     {0,0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0},  
@@ -1084,7 +2020,7 @@ int drawScore ( int s, COLOR COL_USED, int SCORE_LOC, int SCORE_Y, int SCALE ) {
     int y_current = 0;
     
     int each_digit = 0;        // Grab Each Digit
-    int score[12][57] = {      // Score Matrix
+    char score[12][57] = {      // Score Matrix
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
     {0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0}, 
@@ -1181,7 +2117,7 @@ int drawMisses ( int s, COLOR COL_USED ) {
     int y_current = 0;
     
     int each_digit = 0;        // Grab Each Digit
-    int misses[12][61] = {     // Miss Matrix
+    char misses[12][61] = {     // Miss Matrix
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},  
     {1,1,1,0,0,0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0},  
